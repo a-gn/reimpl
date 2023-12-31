@@ -4,6 +4,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git \
         htop \
+        openssh-client \
         python3.11 \
         python3.11-venv \
         tmux
