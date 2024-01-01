@@ -3,6 +3,8 @@ name: Dev Containers image
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - ".devcontainer/Dockerfile"
 
 jobs:
 
