@@ -1,7 +1,11 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-	"image": "265165126141.dkr.ecr.eu-north-1.amazonaws.com/a-gn/reimpl-dev-containers:latest",
+	// "image": "265165126141.dkr.ecr.eu-north-1.amazonaws.com/a-gn/reimpl-dev-containers:latest",
+	"build": {
+		"context": "..",
+		"dockerfile": "./Dockerfile"
+	},
 	"runArgs": [
 		"--gpus=all"
 	],
@@ -24,9 +28,10 @@
 			}
 		}
 	},
-	"mounts": [
-		"source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached",
-	]
+	"postStartCommand": ["pre-commit", "install"]
+	// "mounts": [
+	// 	"source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached",
+	// ]
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},

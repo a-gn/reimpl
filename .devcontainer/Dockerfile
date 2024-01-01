@@ -22,3 +22,6 @@ WORKDIR /opt/poetry-app
 COPY pyproject.toml poetry.lock /opt/poetry-app/
 RUN poetry install --no-interaction --no-root
 WORKDIR /
+
+COPY ./requirements-dev.txt /opt/requirements-dev.txt
+RUN pip install -r /opt/requirements-dev.txt
