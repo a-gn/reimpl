@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
-      run: docker build . --file .dev-containers/Dockerfile --tag "$IMAGE_REPO:$VERSION_TAG"
+      run: docker build . --file .devcontainer/Dockerfile --tag "$IMAGE_REPO:$VERSION_TAG"
     - name: Push Docker image
       run: |
         docker push "$IMAGE_REPO:$VERSION_TAG"
