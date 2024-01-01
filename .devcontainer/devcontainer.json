@@ -19,7 +19,10 @@
 				"ms-python.vscode-pylance"
 			]
 		}
-	}
+	},
+	"mounts": [
+		"source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached",
+	]
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
