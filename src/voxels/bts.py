@@ -1,50 +1,36 @@
 """Re-implementation of Behind the Scenes (CVPR 23)."""
 
+from typing import Callable
+
 import jax.numpy as jnp
 import jax.random as random
+from jax import lax
 
 
-class FeatureGrid:
-    """3D grid of features, positioned in space, that can be sampled from.
+def relu(x: jnp.ndarray) -> jnp.ndarray:
+    return jnp.maximum(x, 0)
 
-    There are two coordinate systems: grid indices and spatial coordinates.
-    This object can e.g. sample at coordinates (x, y, z) by converting those to grid coordinates.
 
-    """
+class UNet2DConvBlock:
+    """One convolution + activation + normalization block in a U-Net."""
 
     def __init__(
         self,
-        width: int,
-        height: int,
-        depth: int,
-        corner_min: tuple[float, float, float],
-        corner_max: tuple[float, float, float],
-        random_init_seed: int = 0,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: tuple[int, int] = (3, 3),
+        activation: Callable[[jnp.ndarray], jnp.ndarray] = relu,
+        init_key: random.KeyArray = random.key(0),
     ):
-        """Initialize the feature grid.
-
-        :param width: Number of columns in the grid. Corresponds to X spatial dimension.
-        :param height: Number of rows in the grid. Corresponds to Y spatial dimension.
-        :param depth: Number of channels in the grid. Corresponds to Z spatial dimension.
-        :param corner_min: x, y, z coordinates of the corner of the grid corresponding to minimum indices.
-        :param corner_max: x, y, z coordinates of the corner of the grid corresponding to maximum indices.
-
-        """
-        self.feature_grid = random.normal(
-            random.key(random_init_seed), (height, width, depth), dtype=jnp.float32
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel = random.normal(
+            init_key,
+            (out_channels, in_channels, kernel_size[0], kernel_size[1]),
         )
-        self.spatial_to_grid_projection = jnp.array(
-            [
-                [width / (corner_max[0] - corner_min[0]), 0, 0],
-                [0, height / (corner_max[1] - corner_min[1]), 0],
-                [0, 0, depth / (corner_max[2] - corner_min[2])],
-            ]
-        )
+        self.activation = activation
 
-    def sample(self, points: jnp.ndarray) -> jnp.ndarray:
-        """Sample features from the grid.
-
-        :param points: Points to sample features at. Shape: (N, 3).
-        :return: Features at the given points. Shape: (N, D).
-
-        """
+    def __call__(self, image: jnp.ndarray) -> jnp.ndarray:
+        x = lax.conv(image, self.kernel, window_strides=(1, 1), padding="SAME")
+        x = self.activation(x)
+        return x
