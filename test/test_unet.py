@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.random as random
 import pytest
 
-from voxels.bts import UNet2DConvBlock, UNet2DEncoderLevel, UNetDecoderLevel
+from voxels.bts import UNet2DConvBlock, UNet2DDecoderLevel, UNet2DEncoderLevel
 
 KEY = random.key(0)
 
@@ -93,7 +93,7 @@ def test_pass_data_through_decoder_level(
     skip_input_image: jnp.ndarray,
     up_input_image: jnp.ndarray,
 ):
-    level = UNetDecoderLevel(
+    level = UNet2DDecoderLevel(
         skip_channels, up_channels, out_channels, **other_decoder_block_args
     )
     output = level(skip_input_image, up_input_image)

@@ -148,7 +148,7 @@ class UNet2DEncoderLevel(TrainableModule):
         return [p for level in self.levels for p in level.get_trainable_parameters()]
 
 
-class UNetDecoderLevel(TrainableModule):
+class UNet2DDecoderLevel(TrainableModule):
     """One level of the decoder in a U-Net.
 
     Takes a skip-input and an up-input that gets upsampled to the skip-input's spatial size. Concatenate the result and
