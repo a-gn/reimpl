@@ -6,7 +6,6 @@ from typing import Callable, Literal
 import jax.numpy as jnp
 import jax.random as random
 from jax import lax
-from jax.numpy import ndarray
 
 
 def relu(x: jnp.ndarray) -> jnp.ndarray:
@@ -21,7 +20,7 @@ def maxpool2d(
     """Max pooling with a 2x2 window."""
     return lax.reduce_window(
         x,
-        init_value=jnp.zeros_like(x),
+        init_value=0,
         computation=jnp.max,
         window_dimensions=window_size,
         window_strides=strides,
@@ -64,7 +63,7 @@ class UNet2DConvBlock(TrainableModule):
         x = self.activation(x)
         return x
 
-    def get_trainable_parameters(self) -> list[ndarray]:
+    def get_trainable_parameters(self) -> list[jnp.ndarray]:
         return [self.kernel]
 
 
@@ -105,7 +104,7 @@ class UpConv2D(TrainableModule):
         )
         return x
 
-    def get_trainable_parameters(self) -> list[ndarray]:
+    def get_trainable_parameters(self) -> list[jnp.ndarray]:
         return [self.kernel]
 
 
@@ -144,7 +143,7 @@ class UNet2DEncoderLevel(TrainableModule):
             x = level(x)
         return x
 
-    def get_trainable_parameters(self) -> list[ndarray]:
+    def get_trainable_parameters(self) -> list[jnp.ndarray]:
         return [p for level in self.levels for p in level.get_trainable_parameters()]
 
 
@@ -186,9 +185,81 @@ class UNet2DDecoderLevel(TrainableModule):
             x = conv(x)
         return x
 
-    def get_trainable_parameters(self) -> list[ndarray]:
+    def get_trainable_parameters(self) -> list[jnp.ndarray]:
         return (
             [p for conv in self.later_convs for p in conv.get_trainable_parameters()]
             + self.up_conv.get_trainable_parameters()
             + self.merge_conv.get_trainable_parameters()
+        )
+
+
+class UNet2D(TrainableModule):
+    """2D U-Net image segmentation network."""
+
+    def __init__(self, in_channels: int, hidden_channels: int, out_channels: int):
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.out_channels = out_channels
+
+        self.encoder_levels = [
+            UNet2DEncoderLevel(in_channels, hidden_channels),
+            UNet2DEncoderLevel(hidden_channels * 2, hidden_channels * 4),
+            UNet2DEncoderLevel(hidden_channels * 4, hidden_channels * 8),
+            UNet2DEncoderLevel(hidden_channels * 8, hidden_channels * 16),
+        ]
+
+        self.bridge = [
+            UNet2DConvBlock(
+                hidden_channels * 16, hidden_channels * 16, kernel_size=(3, 3)
+            ),
+            UNet2DConvBlock(
+                hidden_channels * 16, hidden_channels * 16, kernel_size=(3, 3)
+            ),
+        ]
+
+        self.decoder_levels = [
+            UNet2DDecoderLevel(
+                hidden_channels * 16, hidden_channels * 8, hidden_channels * 8
+            ),
+            UNet2DDecoderLevel(
+                hidden_channels * 8, hidden_channels * 4, hidden_channels * 4
+            ),
+            UNet2DDecoderLevel(
+                hidden_channels * 4, hidden_channels * 2, hidden_channels * 2
+            ),
+            UNet2DDecoderLevel(hidden_channels * 2, hidden_channels, hidden_channels),
+        ]
+
+    def __call__(self, image: jnp.ndarray) -> jnp.ndarray:
+        """Compute the output of the U-Net."""
+        encoder_outputs = []
+        x = image
+        for level in self.encoder_levels:
+            x = level(x)
+            encoder_outputs.append(x)
+            x = maxpool2d(x)
+
+        for bridge_part in self.bridge:
+            x = bridge_part(x)
+
+        for level, encoder_output in zip(
+            self.decoder_levels, reversed(encoder_outputs)
+        ):
+            x = level(encoder_output, x)
+
+        return x
+
+    def get_trainable_parameters(self) -> list[jnp.ndarray]:
+        return (
+            [
+                p
+                for level in self.encoder_levels
+                for p in level.get_trainable_parameters()
+            ]
+            + [
+                p
+                for level in self.decoder_levels
+                for p in level.get_trainable_parameters()
+            ]
+            + [p for level in self.bridge for p in level.get_trainable_parameters()]
         )
