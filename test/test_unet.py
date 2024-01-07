@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.random as random
 import pytest
 
-from voxels.bts import UNet2DConvBlock, UNet2DEncoderLevel
+from voxels.bts import UNet2DConvBlock, UNet2DEncoderLevel, UNetDecoderLevel
 
 KEY = random.key(0)
 
@@ -62,4 +62,44 @@ def test_pass_data_through_encoder_level(
         out_channels,
         input_image.shape[2],
         input_image.shape[3],
+    )
+
+
+@pytest.mark.parametrize(
+    [
+        "skip_channels",
+        "up_channels",
+        "out_channels",
+        "other_decoder_block_args",
+        "skip_input_image",
+        "up_input_image",
+    ],
+    [
+        [
+            2,
+            3,
+            6,
+            {},
+            jnp.ones((2, 2, 8, 8)),
+            jnp.ones((2, 3, 4, 4)),
+        ],
+    ],
+)
+def test_pass_data_through_decoder_level(
+    skip_channels: int,
+    up_channels: int,
+    out_channels: int,
+    other_decoder_block_args: dict[str, Any],
+    skip_input_image: jnp.ndarray,
+    up_input_image: jnp.ndarray,
+):
+    level = UNetDecoderLevel(
+        skip_channels, up_channels, out_channels, **other_decoder_block_args
+    )
+    output = level(skip_input_image, up_input_image)
+    assert output.shape == (
+        skip_input_image.shape[0],
+        out_channels,
+        skip_input_image.shape[2],
+        skip_input_image.shape[3],
     )
