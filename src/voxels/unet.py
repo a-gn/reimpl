@@ -1,7 +1,7 @@
 """Re-implementation of Behind the Scenes (CVPR 23)."""
 
 from abc import ABC, abstractmethod
-from typing import Callable, Literal
+from typing import Callable
 
 import jax.numpy as jnp
 import jax.random as random
