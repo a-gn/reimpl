@@ -18,7 +18,7 @@ jobs:
       contents: read
 
     env:
-      IMAGE_REPO: 265165126141.dkr.ecr.eu-north-1.amazonaws.com/a-gn/reimpl-dev-containers
+      IMAGE_REPO: 265165126141.dkr.ecr.us-east-1.amazonaws.com/a-gn/reimpl-dev-containers
       VERSION_TAG: gha_run_${{github.run_id}}_sha_${{github.sha}}
 
     steps:
@@ -26,7 +26,7 @@ jobs:
     - uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::265165126141:role/github_cicd_private_repos_a-gn
-        aws-region: eu-north-1
+        aws-region: us-east-1
         role-session-name: GitHub_to_AWS_via_FederatedOIDC
     - name: Login to Amazon ECR
       id: login-ecr

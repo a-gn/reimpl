@@ -1,11 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-    // "image": "265165126141.dkr.ecr.eu-north-1.amazonaws.com/a-gn/reimpl-dev-containers:latest",
-    "build": {
-        "context": "..",
-        "dockerfile": "./Dockerfile"
-    },
+    "image": "265165126141.dkr.ecr.us-east-1.amazonaws.com/a-gn/reimpl-dev-containers:latest",
     "runArgs": [
         "--gpus=all"
     ],
@@ -32,7 +28,7 @@
     "mounts": [
         "source=/home,target=/home,type=bind",
         "source=/mnt,target=/mnt,type=bind"
-    ]
+    ],
 
     // Features to add to the dev container. More info: https://containers.dev/features.
     // "features": {},
@@ -41,7 +37,7 @@
     // "forwardPorts": [],
 
     // Use 'postCreateCommand' to run commands after the container is created.
-    // "postCreateCommand": "pip3 install --user -r requirements.txt",
+    "postCreateCommand": "bash -c 'git config --global user.name \"Arno Gobbin\"; git config --global user.email \"32413451+a-gn@users.noreply.github.com\""
 
     // Configure tool-specific properties.
     // "customizations": {},
