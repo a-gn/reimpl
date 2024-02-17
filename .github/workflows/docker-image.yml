@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - ".devcontainer/Dockerfile"
+      - ".devcontainer/"
       - ".github/workflows/docker-image.yml"
 
 jobs:
@@ -28,6 +28,13 @@ jobs:
         role-to-assume: arn:aws:iam::265165126141:role/github-runner-a-gn-role
         aws-region: us-east-1
         role-session-name: GitHub_to_AWS_via_FederatedOIDC
+    - uses: hashicorp/setup-terraform@v3
+    - name: Terraform Init
+      run: terraform init
+      working-directory: .devcontainer
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+      working-directory: .devcontainer
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
