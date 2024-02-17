@@ -25,7 +25,7 @@ jobs:
     - uses: actions/checkout@v3
     - uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::265165126141:role/github_cicd_private_repos_a-gn
+        role-to-assume: arn:aws:iam::265165126141:role/github-runner-a-gn-role
         aws-region: us-east-1
         role-session-name: GitHub_to_AWS_via_FederatedOIDC
     - name: Login to Amazon ECR
