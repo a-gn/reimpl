@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-    "image": "265165126141.dkr.ecr.us-east-1.amazonaws.com/a-gn/reimpl-dev-containers:latest",
+    "image": "265165126141.dkr.ecr.us-east-1.amazonaws.com/reimpl-dev-containers:latest",
     "runArgs": [
         "--gpus=all"
     ],

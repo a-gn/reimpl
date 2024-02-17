@@ -18,7 +18,7 @@ jobs:
       contents: read
 
     env:
-      IMAGE_REPO: 265165126141.dkr.ecr.us-east-1.amazonaws.com/a-gn/reimpl-dev-containers
+      IMAGE_REPO: 265165126141.dkr.ecr.us-east-1.amazonaws.com/reimpl-dev-containers
       VERSION_TAG: gha_run_${{github.run_id}}_sha_${{github.sha}}
 
     steps:
