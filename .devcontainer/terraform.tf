@@ -7,7 +7,7 @@ terraform {
   }
   backend "s3" {
     bucket = "a-gn-cicd-data"
-    key    = "terraform/state/github-cicd/terraform.tfstate"
+    key    = "terraform/state/reimpl-docker-image/terraform.tfstate"
     region = "us-east-1"
   }
 }
