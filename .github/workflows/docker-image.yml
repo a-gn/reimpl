@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - ".devcontainer/"
+      - ".devcontainer/*"
       - ".github/workflows/docker-image.yml"
 
 jobs:
