@@ -18,31 +18,34 @@
             ],
             "settings": {
                 "editor.formatOnSave": true,
-                "editor.rulers": [120],
+                "editor.rulers": [
+                    120
+                ],
                 "python.defaultInterpreterPath": "/opt/venv/bin/python",
                 "python.formatting.provider": "black",
-                "python.formatting.blackArgs": ["--line-length", "120"]
+                "python.formatting.blackArgs": [
+                    "--line-length",
+                    "120"
+                ]
             }
         }
     },
-    "postStartCommand": ["pre-commit", "install"],
+    "postStartCommand": [
+        "pre-commit",
+        "install"
+    ],
     "mounts": [
         "source=/home,target=/home,type=bind",
         "source=/mnt,target=/mnt,type=bind"
     ],
-
     // Features to add to the dev container. More info: https://containers.dev/features.
     // "features": {},
-
     // Use 'forwardPorts' to make a list of ports inside the container available locally.
     // "forwardPorts": [],
-
     // Use 'postCreateCommand' to run commands after the container is created.
-    "postCreateCommand": "bash -c 'git config --global user.name \"Arno Gobbin\"; git config --global user.email \"32413451+a-gn@users.noreply.github.com\""
-
+    "postCreateCommand": "bash -c 'git config --global user.name \"Arno Gobbin\"; git config --global user.email \"32413451+a-gn@users.noreply.github.com\"'"
     // Configure tool-specific properties.
     // "customizations": {},
-
     // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
     // "remoteUser": "root"
 }
