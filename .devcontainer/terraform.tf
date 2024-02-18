@@ -13,7 +13,7 @@ terraform {
 }
 
 # ECR repository for final images
-resource "aws_ecr_repository" "reimpl_dev_containers" {
+resource "aws_ecr_repository" "reimpl-dev-containers" {
   name                 = "reimpl-dev-containers"
   image_tag_mutability = "MUTABLE"
 }
