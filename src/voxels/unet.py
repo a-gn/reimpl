@@ -1,11 +1,12 @@
 """Re-implementation of Behind the Scenes (CVPR 23)."""
 
-from abc import ABC, abstractmethod
 from typing import Callable
 
 import jax.numpy as jnp
 import jax.random as random
 from jax import lax
+
+from .modules import TrainableModule
 
 
 def relu(x: jnp.ndarray) -> jnp.ndarray:
@@ -26,15 +27,6 @@ def maxpool2d(
         window_strides=(1, 1, strides[0], strides[1]),
         padding="SAME",
     )
-
-
-class TrainableModule(ABC):
-    """Module with parameters that can be trained."""
-
-    @abstractmethod
-    def get_trainable_parameters(self) -> list[jnp.ndarray]:
-        """Get all of this module's trainable parameters."""
-        pass
 
 
 class UNet2DConvBlock(TrainableModule):
