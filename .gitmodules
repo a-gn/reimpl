@@ -1,3 +1,6 @@
 [submodule "BehindTheScenes"]
 	path = external/BehindTheScenes
 	url = git@github.com:a-gn/BehindTheScenes.git
+[submodule "external/nerf"]
+	path = external/nerf
+	url = git@github.com:bmild/nerf.git
