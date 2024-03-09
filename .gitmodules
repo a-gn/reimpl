@@ -1,0 +1,3 @@
+[submodule "BehindTheScenes"]
+	path = external/BehindTheScenes
+	url = git@github.com:a-gn/BehindTheScenes.git
