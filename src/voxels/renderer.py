@@ -1,7 +1,8 @@
 """NeRF rendered for BTS."""
 
+from abc import abstractmethod
 from logging import getLogger
-from typing import Callable
+from typing import Protocol
 
 import jax
 import jax.numpy as jnp
@@ -48,14 +49,31 @@ class BTSPrediction:
         raise NotImplementedError()
 
 
+class BTSBackbone(TrainableModule, Protocol):
+    def __call__(self, image: jnp.ndarray) -> jnp.ndarray:
+        ...
+
+
 class BTSModel(TrainableModule):
     """Model that predicts a feature grid from an image."""
 
-    def __init__(self, backbone: Callable[[jnp.ndarray], jnp.ndarray]):
+    def __init__(self, backbone: TrainableModule, feature_depth: int):
         """
         @param backbone Module that predicts a feature map from an image.
         """
         self.backbone = backbone
+        self.feature_depth = feature_depth
 
-    def __call__(self, image: jnp.ndarray):
+    def __call__(self, image: jnp.ndarray) -> BTSPrediction:
         backbone_out = self.backbone(image)
+        expected_shape = (
+            image.shape[0],
+            self.feature_depth,
+            image.shape[2],
+            image.shape[3],
+        )
+        if backbone_out.shape != expected_shape:
+            raise ValueError(
+                f"backbone output shape {backbone_out.shape} does not match expected shape {expected_shape}"
+            )
+        return BTSPrediction(image, backbone_out)
