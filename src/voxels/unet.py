@@ -18,7 +18,7 @@ def maxpool2d(
     window_size: tuple[int, int] = (2, 2),
     strides: tuple[int, int] = (2, 2),
 ) -> jnp.ndarray:
-    """Max pooling with a 2x2 window."""
+    """Max pooling."""
     return lax.reduce_window(
         x,
         init_value=0.0,
