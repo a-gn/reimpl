@@ -1,22 +1,13 @@
 """NeRF rendered for BTS."""
 
-from abc import abstractmethod
 from logging import getLogger
 from typing import Protocol
 
-import jax
 import jax.numpy as jnp
 
 from .modules import TrainableModule
-from .unet import UNet2D
 
 _log = getLogger(__name__)
-
-
-class NeRFRenderer:
-    """Composes images from ray features."""
-
-    pass
 
 
 class BTSPrediction:
