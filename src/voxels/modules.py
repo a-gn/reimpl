@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Callable, Protocol
 
 import jax.numpy as jnp
 
@@ -6,9 +6,7 @@ import jax.numpy as jnp
 class TrainableModule(Protocol):
     """Module with parameters that can be trained."""
 
-    def __call__(self, *args, **kwargs) -> jnp.ndarray:
-        """Forward pass of the module."""
-        ...
+    __call__: Callable[..., jnp.ndarray]
 
     def get_trainable_parameters(self) -> list[jnp.ndarray]:
         """Get all of this module's trainable parameters."""
