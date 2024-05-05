@@ -48,7 +48,7 @@ class BTSBackbone(TrainableModule, Protocol):
 class BTSModel(TrainableModule):
     """Model that predicts a feature grid from an image."""
 
-    def __init__(self, backbone: TrainableModule, feature_depth: int):
+    def __init__(self, backbone: BTSBackbone, feature_depth: int):
         """
         @param backbone Module that predicts a feature map from an image.
         """
