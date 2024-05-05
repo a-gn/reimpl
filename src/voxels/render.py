@@ -86,19 +86,3 @@ def blend_ray_features(ray_features: jt.ArrayLike) -> jax.Array:
         center_values[..., :3] * center_values[..., 3] * interval_lengths, axis=-2
     )
     return blended_values
-
-
-@jax.jit
-def render_image_from_rays(
-    ray_features: jt.ArrayLike, image_height: int, image_width: int
-) -> jax.Array:
-    """Render an image from (R, G, B, sigma) predicted along a set of rays.
-
-    We interpolate the input ray features to get values for each pixel's center.
-
-    @param ray_features Array of colors and transparency predicted along rays. Shape: (num_rays, pos_per_ray, 7).
-    Last axis: x, y, z, R, G, B, sigma.
-    @return The rendered RGB image. Shape: (3, image_height, image_width).
-    """
-    color_per_ray = blend_ray_features(ray_features)
-    final_image = jnp.zeros((3, image_height, image_width), dtype=jnp.float32)
