@@ -62,11 +62,30 @@ def sample_positions_along_rays(
 def blend_ray_features(ray_features: jt.ArrayLike) -> jax.Array:
     """Compute one color for each ray.
 
-    @param ray_features Coordinates, color, and transparency sampled along rays. Shape: (num_rays, pos_per_ray, 7).
+    @param ray_features Coordinates, color, and transparency sampled along rays. Shape: (..., pos_per_ray, 7).
     Second axis: x, y, z, R, G, B, sigma.
     @return One color per ray. Shape: (num_rays, ..., 3). Last axis: R, G, B.
     """
-    raise NotImplementedError()
+    ray_features = jnp.array(ray_features)
+    # compute length and center of intervals between samples
+    interval_lengths = ray_features[..., 1::, :3] - ray_features[..., ::-1, :3]
+    interval_centers = ray_features[..., ::-1, :3] + (
+        (ray_features[..., 1::, :3] - ray_features[..., ::-1, :3]) / 2
+    )
+    # compute distances between origin and interval centers and samples
+    origin_center_distances = jnp.linalg.norm(interval_centers, axis=-1, ord=2) ** 1 / 2
+    origin_sample_distances = (
+        jnp.linalg.norm(ray_features[..., :, :3], axis=-1, ord=2) ** 1 / 2
+    )
+    # interpolate values at midpoints between samples
+    center_values = jnp.interp(
+        origin_center_distances, origin_sample_distances, ray_features[..., :, 3:]
+    )
+    # weight interpolated colors at midpoints with interval lengths and interpolated sigma values
+    blended_values = jnp.sum(
+        center_values[..., :3] * center_values[..., 3] * interval_lengths, axis=-2
+    )
+    return blended_values
 
 
 @jax.jit
