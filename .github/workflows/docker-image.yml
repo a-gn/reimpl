@@ -1,11 +1,8 @@
-name: Dev Containers image
+# Unused workflow that used to automatically build the Docker image for AWS runners
 
+name: Dev Containers image
 on:
-  push:
-    branches: [ "main" ]
-    paths:
-      - ".devcontainer/*"
-      - ".github/workflows/docker-image.yml"
+  workflow_dispatch:
 
 jobs:
 
