@@ -7,12 +7,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-jax = {extras = ["cuda11-pip"], version = "^0.4.23"}
-
-[[tool.poetry.source]]
-name = "jax_cuda_releases"
-url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
-priority = "primary"
+numpy = "^2.0.1"
+wheel = "^0.44.0"
+jax-metal = "^0.1.0"
+pytest = {version = "^8.3.2", extras = ["dev"]}
+pre-commit = {version = "^3.8.0", extras = ["dev"]}
 
 [[tool.poetry.source]]
 name = "PyPI"
