@@ -4,7 +4,12 @@ import jax.numpy as jnp
 import jax.random as random
 import pytest
 
-from voxels.unet import UNet2D, UNet2DConvBlock, UNet2DDecoderLevel, UNet2DEncoderLevel
+from reimpl_a_gn.voxels.unet import (
+    UNet2D,
+    UNet2DConvBlock,
+    UNet2DDecoderLevel,
+    UNet2DEncoderLevel,
+)
 
 KEY = random.key(0)
 
