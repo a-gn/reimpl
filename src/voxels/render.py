@@ -1,12 +1,11 @@
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
-import jax.lax as lax
 
 
 def sample_rays_for_image_render(
-    camera_origin: jt.ArrayLike,
-    camera_params: jt.ArrayLike,
+    camera_origin: jax.Array,
+    camera_params: jax.Array,
     image_height: int,
     image_width: int,
 ) -> jax.Array:
@@ -34,7 +33,7 @@ def sample_rays_for_image_render(
 
 
 def sample_positions_along_rays(
-    rays: jt.ArrayLike, near_distance: float, far_distance: float, pos_per_ray: int
+    rays: jax.Array, near_distance: float, far_distance: float, pos_per_ray: int
 ) -> jax.Array:
     """Compute regular positions along a set of rays.
 
@@ -59,7 +58,7 @@ def sample_positions_along_rays(
     return result
 
 
-def blend_ray_features(ray_features: jt.ArrayLike) -> jax.Array:
+def blend_ray_features(ray_features: jax.Array) -> jax.Array:
     """Compute one color for each ray.
 
     @param ray_features Coordinates, color, and transparency sampled along rays. Shape: (..., pos_per_ray, 7).
