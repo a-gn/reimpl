@@ -18,8 +18,8 @@ def sample_rays_for_image_render(
     @param image_width Pixel column count of the image we want to render.
     @return Ray parameters. Shape: (image_height, image_width, 6). Second axis: x, y, z, dx, dy, dz.
     """
-    camera_params = lax.slice(camera_params, (0, 0), (3, 3)) / lax.slice(
-        camera_params, (2, 0), (3, 3)
+    camera_params = jnp.divide(
+        camera_params[:3, :3], jnp.expand_dims(camera_params[:, 3], 0)
     )
     camera_origin = camera_origin[:3] / camera_origin[3]
     image_to_world = jnp.linalg.inv(camera_params)
