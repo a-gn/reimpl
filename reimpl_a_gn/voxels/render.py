@@ -52,13 +52,14 @@ def sample_positions_along_rays(
     result = jnp.zeros(list(rays.shape[:-1]) + [pos_per_ray, 3], dtype=jnp.float32)
     ray_origins = rays[..., :3]
     ray_directions = rays[..., 3:]
-    norm_ray_directions = ray_directions / (
-        jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2
+    norm_ray_directions = ray_directions / jnp.expand_dims(
+        (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), 2
     )
     distance_interval = (far_distance - near_distance) / pos_per_ray
     for pos_i in range(pos_per_ray + 1):
-        result[..., pos_i, :] = ray_origins + norm_ray_directions * (
-            near_distance + pos_i * distance_interval
+        result = result.at[..., pos_i, :].set(
+            ray_origins
+            + norm_ray_directions * (near_distance + pos_i * distance_interval)
         )
     return result
 
