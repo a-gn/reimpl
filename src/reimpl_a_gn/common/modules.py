@@ -4,7 +4,6 @@ import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as random
-import jax.typing as jt
 
 
 def relu(x: jax.Array) -> jax.Array:

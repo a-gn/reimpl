@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax.random as random
 from jax import lax
 
-from .modules import TrainableModule, UpConv2D, maxpool2d, relu
+from ..common.modules import TrainableModule, UpConv2D, maxpool2d, relu
 
 
 class UNet2DConvBlock(TrainableModule):

@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import jax.typing as jt
 
-from .modules import TrainableModule
+from ..common.modules import TrainableModule
 
 _log = getLogger(__name__)
 
