@@ -28,12 +28,12 @@ def sample_rays_for_image_render(
         for col_i in range(image_width):
             image_point = jnp.array([row_i + 0.5, col_i + 0.5, 1], dtype=jnp.float32)
             world_point = image_to_world @ image_point
-            ray_coords.at[row_i, col_i, 0:3].set(world_point)
+            ray_coords = ray_coords.at[row_i, col_i, :3].set(world_point)
             camera_to_wp = world_point - camera_origin
             ray_direction = camera_to_wp / (
                 jnp.linalg.norm(camera_to_wp[:2] / camera_to_wp[2], axis=0) ** 1 / 2
             )
-            ray_coords.at[row_i, col_i, 3:6].set(ray_direction)
+            ray_coords = ray_coords.at[row_i, col_i, 3:6].set(ray_direction)
     return ray_coords
 
 
