@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
+import jax.lax as lax
 
 
 def sample_rays_for_image_render(
@@ -17,8 +18,12 @@ def sample_rays_for_image_render(
     @param image_width Pixel column count of the image we want to render.
     @return Ray parameters. Shape: (image_height, image_width, 6). Second axis: x, y, z, dx, dy, dz.
     """
+    camera_params = lax.slice(camera_params, (0, 0), (3, 3)) / lax.slice(
+        camera_params, (2, 0), (3, 3)
+    )
+    camera_origin = camera_origin[:3] / camera_origin[3]
     image_to_world = jnp.linalg.inv(camera_params)
-    ray_coords = jnp.zeros((image_height, image_width))
+    ray_coords = jnp.zeros((image_height, image_width, 6), dtype=jnp.float32)
     for row_i in range(image_height):
         for col_i in range(image_width):
             image_point = jnp.array([row_i + 0.5, col_i + 0.5, 1], dtype=jnp.float32)

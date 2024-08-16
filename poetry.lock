@@ -531,23 +531,6 @@ minimum-jaxlib = ["jaxlib (==0.4.30)"]
 tpu = ["jaxlib (==0.4.31)", "libtpu-nightly (==0.1.dev20240729)", "requests"]
 
 [[package]]
-name = "jax-metal"
-version = "0.1.0"
-description = "JAX acceleration for Mac GPUs."
-optional = false
-python-versions = "*"
-files = [
-    {file = "jax_metal-0.1.0-py3-none-macosx_10_14_x86_64.whl", hash = "sha256:6cbd62a2068fcadea9c22689c12905e6fe0f58da2230fe2beba263132258cc54"},
-    {file = "jax_metal-0.1.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:68006a39d331674880265361f612fcb0e3314a220245c05b8c27d204077de085"},
-]
-
-[package.dependencies]
-jax = ">=0.4.26"
-jaxlib = ">=0.4.26"
-six = ">=1.15.0"
-wheel = ">=0.35,<1.0"
-
-[[package]]
 name = "jaxlib"
 version = "0.4.31"
 description = "XLA library for JAX"
@@ -1207,17 +1190,6 @@ doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-
 test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "importlib-metadata", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "jaraco.test", "mypy (==1.11.*)", "packaging (>=23.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-home (>=0.5)", "pytest-mypy", "pytest-perf", "pytest-ruff (<0.4)", "pytest-ruff (>=0.2.1)", "pytest-ruff (>=0.3.2)", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
 
 [[package]]
-name = "six"
-version = "1.16.0"
-description = "Python 2 and 3 compatibility utilities"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
-files = [
-    {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
-    {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
-]
-
-[[package]]
 name = "sortedcontainers"
 version = "2.4.0"
 description = "Sorted Containers -- Sorted List, Sorted Dict, Sorted Set"
@@ -1372,4 +1344,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "f41cb42af348cee4856ba09b3705847cd88b57cb00c3ff5672fa66c73f04b0e2"
+content-hash = "081ff963bb8e051755e811236ac648fd4693018d86b0015eaadc8ef20e1eebab"
