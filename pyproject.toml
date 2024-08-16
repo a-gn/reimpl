@@ -12,6 +12,7 @@ wheel = "^0.44.0"
 jax-metal = "^0.1.0"
 pytest = {version = "^8.3.2", extras = ["dev"]}
 pre-commit = {version = "^3.8.0", extras = ["dev"]}
+flax = "^0.8.5"
 
 [[tool.poetry.source]]
 name = "PyPI"
