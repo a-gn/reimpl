@@ -17,6 +17,7 @@ ruff = {version = "^0.6.0", extras = ["dev"]}
 isort = {version = "^5.13.2", extras = ["dev"]}
 jax = "^0.4.31"
 jaxlib = "^0.4.31"
+matplotlib = "^3.9.2"
 
 [[tool.poetry.source]]
 name = "PyPI"
