@@ -4,6 +4,34 @@ import jax.typing as jt
 import jax.lax as lax
 
 
+def get_ray_to_image_coordinates(
+    camera_params: jax.Array, pixel_row: float, pixel_col: float, pixel_size_x: float, pixel_size_y: float
+) -> jax.Array:
+    """Compute the direction of a ray from the camera origin to a point in the image.
+
+    Assumes that the camera is at the origin and looks along the z-axis.
+
+    @param camera_params Camera matrix. Shape: (3, 4).
+    @param pixel_row Row index of the pixel. Can be a float to represent subpixel positions.
+    @param pixel_col Column index of the pixel. Can be a float to represent subpixel positions.
+    @param pixel_size_x Width of a pixel in the image plane.
+    @param pixel_size_y Height of a pixel in the image plane.
+    @return Unit vector in the direction of the ray from camera origin to a point in the image plane.
+    Shape: (image_height, image_width, 3). Last axis: x, y, z.
+    """
+    camera_params = jnp.array(camera_params)
+    focal_length = camera_params[0, 0] * pixel_size_x
+    principal_point = jnp.array([0, 0, focal_length])
+    pixel_center = jnp.array([
+        principal_point[0] + pixel_size_x * pixel_col,
+        principal_point[1] - pixel_size_y * pixel_row,
+        principal_point[2],
+    ])
+    origin_to_pixel = pixel_center
+    origin_to_pixel = origin_to_pixel / jnp.linalg.norm(origin_to_pixel, ord=2)
+    return origin_to_pixel
+
+
 def sample_rays_for_image_render(
     camera_origin: jax.Array,
     camera_params: jax.Array,
@@ -19,17 +47,10 @@ def sample_rays_for_image_render(
     @return Ray parameters. Shape: (image_height, image_width, 6). Second axis: x, y, z, dx, dy, dz.
     """
     camera_origin = camera_origin[:3] / camera_origin[3]
-    image_to_world = jnp.linalg.inv(camera_params)
     ray_coords = jnp.zeros((image_height, image_width, 6), dtype=jnp.float32)
     for row_i in range(image_height):
         for col_i in range(image_width):
-            image_point = jnp.array([row_i + 0.5, col_i + 0.5, 1], dtype=jnp.float32)
-            world_point = image_to_world @ image_point
-            ray_coords = ray_coords.at[row_i, col_i, :3].set(world_point)
-            camera_to_wp = world_point - camera_origin
-            ray_direction = camera_to_wp / (
-                jnp.linalg.norm(camera_to_wp[:2] / camera_to_wp[2], axis=0) ** 1 / 2
-            )
+            ray_direction = get_ray_to_image_coordinates(camera_params, row_i, col_i, 1.0, 1.0)
             ray_coords = ray_coords.at[row_i, col_i, 3:6].set(ray_direction)
     return ray_coords
 
