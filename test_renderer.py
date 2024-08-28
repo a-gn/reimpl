@@ -35,21 +35,34 @@ all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
 fig_2d = plt.figure()
 plt.scatter(all_grid_points[:, 0], all_grid_points[:, 1])
 
-all_grid_points_world = camera_params.image_points_to_world(all_grid_points)
-all_grid_points_world_non_hom = jnp.stack(
+all_rays_towards_grid_points = camera_params.image_points_to_world(all_grid_points)
+all_rays_towards_grid_points = jnp.concatenate(
     [
-        all_grid_points_world[:, 0] / all_grid_points_world[:, 3],
-        all_grid_points_world[:, 1] / all_grid_points_world[:, 3],
-        all_grid_points_world[:, 2] / all_grid_points_world[:, 3],
+        jnp.zeros([all_rays_towards_grid_points.shape[0], 3]),
+        all_rays_towards_grid_points[:, :3],
     ],
-    axis=-1,
+    1,
 )
+positions_along_rays = sample_positions_along_rays(
+    all_rays_towards_grid_points, 0.0, 1.0, 5
+)
+print(positions_along_rays)
+
+fig = plt.figure()
+ax = fig.add_subplot(projection="3d")
+flat_positions = positions_along_rays.reshape(-1, 3)
+ax.scatter(
+    flat_positions[:, 0],
+    flat_positions[:, 1],
+    flat_positions[:, 2],
+)
+
 fig_3d = plt.figure()
 ax = fig_3d.add_subplot(projection="3d")
 ax.scatter(
-    all_grid_points_world_non_hom[:, 0],
-    all_grid_points_world_non_hom[:, 1],
-    all_grid_points_world_non_hom[:, 2],
+    flat_positions[:, 0],
+    flat_positions[:, 1],
+    flat_positions[:, 2],
 )
 plt.show()
 
