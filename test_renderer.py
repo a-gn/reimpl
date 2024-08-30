@@ -30,7 +30,7 @@ camera_params = CameraParams(
 
 print(camera_params.image_points_to_world(jnp.array([[0.0, 0.0]])))
 
-all_x, all_y = pixel_grid = jnp.meshgrid(jnp.arange(-5, 5, 0.5), jnp.arange(-5, 5, 0.5))
+all_x, all_y = pixel_grid = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
 all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
 
 all_rays_towards_grid_points = camera_params.image_points_to_world(all_grid_points)
@@ -42,7 +42,7 @@ all_rays_towards_grid_points = jnp.concatenate(
     1,
 )
 positions_along_rays = sample_positions_along_rays(
-    all_rays_towards_grid_points, 0.0, 1.0, 5
+    all_rays_towards_grid_points, 0.1, 1.1, 4
 )
 print(positions_along_rays)
 

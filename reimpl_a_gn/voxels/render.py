@@ -104,7 +104,7 @@ def sample_positions_along_rays(
     )
     distance_interval = (far_distance - near_distance) / pos_per_ray
     for pos_i in range(1, pos_per_ray + 1):
-        result = result.at[..., pos_i, :].set(
+        result = result.at[..., pos_i - 1, :].set(
             ray_origins
             + norm_ray_directions * (near_distance + pos_i * distance_interval)
         )
