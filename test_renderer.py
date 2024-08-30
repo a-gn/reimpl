@@ -30,10 +30,8 @@ camera_params = CameraParams(
 
 print(camera_params.image_points_to_world(jnp.array([[0.0, 0.0]])))
 
-all_x, all_y = pixel_grid = jnp.meshgrid(jnp.arange(1, 5, 0.5), jnp.arange(1, 5, 0.5))
+all_x, all_y = pixel_grid = jnp.meshgrid(jnp.arange(-5, 5, 0.5), jnp.arange(-5, 5, 0.5))
 all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
-fig_2d = plt.figure()
-plt.scatter(all_grid_points[:, 0], all_grid_points[:, 1])
 
 all_rays_towards_grid_points = camera_params.image_points_to_world(all_grid_points)
 all_rays_towards_grid_points = jnp.concatenate(
@@ -48,21 +46,25 @@ positions_along_rays = sample_positions_along_rays(
 )
 print(positions_along_rays)
 
-fig = plt.figure()
-ax = fig.add_subplot(projection="3d")
+fig_rays = plt.figure()
+ax_rays = fig_rays.add_subplot(projection="3d")
+ax_rays.text(1, 0, 0, "x-axis", "x")
+ax_rays.text(0, 1, 0, "y-axis", "y")
+ax_rays.text(0, 0, 1, "z-axis", "z")
 flat_positions = positions_along_rays.reshape(-1, 3)
-ax.scatter(
+ax_rays.scatter(
     flat_positions[:, 0],
     flat_positions[:, 1],
     flat_positions[:, 2],
 )
 
-fig_3d = plt.figure()
-ax = fig_3d.add_subplot(projection="3d")
-ax.scatter(
-    flat_positions[:, 0],
-    flat_positions[:, 1],
-    flat_positions[:, 2],
+grid_points_world = camera_params.image_points_to_world(all_grid_points)
+ax_rays.text(1, 0, 0, "x-axis", "x")
+ax_rays.text(0, 1, 0, "y-axis", "y")
+ax_rays.text(0, 0, 1, "z-axis", "z")
+flat_positions = positions_along_rays.reshape(-1, 3)
+ax_rays.scatter(
+    grid_points_world[:, 0], grid_points_world[:, 1], grid_points_world[:, 2], "red"
 )
 plt.show()
 

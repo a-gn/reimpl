@@ -52,7 +52,6 @@ def get_ray_to_image_coordinates(camera_params: CameraParams, pixel_row: float, 
     @return Unit vector in the direction of the ray from camera origin to a point in the image plane.
     Shape: (image_height, image_width, 3). Last axis: x, y, z.
     """
-    principal_point_pixels = jnp.array([])
     principal_point_world = jnp.array([0, 0, camera_params.focal_length])
     pixel_center = jnp.array([
         principal_point_world[0] + camera_params.pixel_size_x * pixel_col,
