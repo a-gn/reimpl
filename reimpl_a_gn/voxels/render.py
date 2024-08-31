@@ -84,7 +84,7 @@ def sample_rays_towards_all_pixels(
     return ray_coords
 
 
-def sample_positions_along_rays(
+def sample_regular_positions_along_rays(
     rays: jax.Array, near_distance: float, far_distance: float, pos_per_ray: int
 ) -> jax.Array:
     """Compute regular positions along a set of rays.
@@ -111,8 +111,61 @@ def sample_positions_along_rays(
     return result
 
 
-def blend_ray_features(ray_features: jax.Array) -> jax.Array:
-    """Compute one color for each ray.
+def sample_nerf_rendering_positions_along_rays(
+    rays: jax.Array,
+    near_distance: float,
+    far_distance: float,
+    bins_per_ray: int,
+    prng_key: jax.Array,
+):
+    """Split (near, far) into regularly-sized bins, then randomly sample one position per bin uniformly.
+
+    @param rays Ray parameters. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
+    @param near_distance Smallest distance from origin to sample at.
+    @param far_distance Largest distance from origin to sample at.
+    @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
+    @return Points sampled uniformly for each bin, for each ray. Shape: (..., bins_per_ray, 3). Last axis: x, y, z.
+    """
+    rays = jnp.array(rays)
+    result = jnp.zeros(list(rays.shape[:-1]) + [bins_per_ray, 3], dtype=jnp.float32)
+    ray_origins = rays[..., :3]
+    ray_directions = rays[..., 3:]
+    norm_ray_directions = ray_directions / jnp.expand_dims(
+        (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), -1
+    )
+    bin_width = (far_distance - near_distance) / bins_per_ray
+    positions_shape_per_bin = list(rays.shape[:-1])
+    for bin_i in range(1, bins_per_ray + 1):
+        bin_start = near_distance + bin_i * bin_width
+        bin_end = near_distance + (bin_i + 1) * bin_width
+        position_on_ray = jax.random.uniform(
+            prng_key,
+            # keep first axes of rays, just remove the last one and replace with 3
+            positions_shape_per_bin,
+            dtype=float,
+            minval=bin_start,
+            maxval=bin_end,
+        )
+        sampled_points = ray_origins + norm_ray_directions * jnp.expand_dims(
+            position_on_ray, -1
+        )
+        result = result.at[..., bin_i - 1, :].set(sampled_points)
+    return result
+
+
+def blend_ray_features_with_nerf_paper_method(
+    ray_features: jax.Array, bins_per_ray: int
+) -> jax.Array:
+    """Compute one color for each ray, by using the NeRF paper's rendering method.
+
+    We split the (near_point, far_point) interval into N regularly-sized bins, then sample one point, $t_i$, uniformly
+    inside each bin. We then use alpha-rendering with this formula:
+
+    $C(r) = \\sum_{i=1}^{N}{c(t_i)T(t_i)(1-\\exp(-\\sigma(t_i)\\delta(t_i)))}$
+
+    where $T(t_i) = \\exp{-\\sum_{j=1}^{i-1}{\\sigma(t_j)}}$ is the weight of each color (goes down exponentially with
+    the sum of densities of the previous intervals) and $\\delta(T-i)$ is the distance between the previous point
+    $t_{i-1}$ and $t_i$.
 
     @param ray_features Coordinates, color, and transparency sampled along rays. Shape: (..., pos_per_ray, 7).
     Second axis: x, y, z, R, G, B, sigma.
