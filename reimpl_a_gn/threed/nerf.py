@@ -191,3 +191,26 @@ def blend_ray_features_with_nerf_paper_method(
         center_values[..., :3] * center_values[..., 3] * interval_lengths, axis=-2
     )
     return blended_values
+
+
+def compute_nerf_positional_encoding(
+    points_and_directions: jt.ArrayLike, components: int
+):
+    """Compute the NeRF paper's positional encoding of a set of points and associated directions.
+
+    @param points_and_directions Data to encode. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
+    @return Positional encoding of the points. Shape: (..., 2 * components).
+    """
+
+    points_and_directions = jnp.array(points_and_directions)
+    result = jnp.zeros(
+        list(points_and_directions.shape[:-1]) + [6, 2 * components], dtype=float
+    )
+    for power_of_two in range(components):
+        result = result.at[..., power_of_two * 2].set(
+            jnp.sin(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
+        )
+        result = result.at[..., power_of_two * 2 + 1].set(
+            jnp.cos(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
+        )
+    return result
