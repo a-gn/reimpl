@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import jax.typing as jt
 import jax.lax as lax
+import numpy
 
 
 class CameraParams:
@@ -37,7 +38,9 @@ class CameraParams:
 
     def compute_inverse_camera_matrix(self):
         if self._inverse_camera_matrix is None:
-            self._inverse_camera_matrix = jnp.linalg.pinv(self.camera_matrix)
+            self._inverse_camera_matrix = jnp.array(
+                numpy.linalg.pinv(self.camera_matrix)
+            )
         return self._inverse_camera_matrix
 
 
