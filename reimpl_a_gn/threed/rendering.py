@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import jax.typing as jt
 import jax.lax as lax
-import numpy
+import numpy  # some operations aren't supported on jax-metal
 
 
 class CameraParams:
@@ -37,10 +37,14 @@ class CameraParams:
         return (inverse_camera_matrix @ image_points_homogeneous.transpose()).transpose()
 
     def compute_inverse_camera_matrix(self):
+        """Compute the pseudoinverse of the camera matrix, which computes ray direction from image point.
+
+        This goes through numpy on CPU because jax-metal doesn't support the pinv operation as of writing.
+        """
         if self._inverse_camera_matrix is None:
             self._inverse_camera_matrix = jnp.array(
                 numpy.linalg.pinv(self.camera_matrix)
-            )
+            )  # pinv not supported by jax-metal on 24/09/01
         return self._inverse_camera_matrix
 
 
