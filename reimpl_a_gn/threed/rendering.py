@@ -22,14 +22,14 @@ class CameraParams:
         self.pixel_size_y = (1 / self.camera_matrix[1, 1]) * focal_length
         self._inverse_camera_matrix = None
 
-    def world_points_to_image(self, world_points: jt.ArrayLike) -> jax.Array:
-        return self.camera_matrix @ world_points
+    def camera_points_to_image(self, camera_points: jt.ArrayLike) -> jax.Array:
+        return self.camera_matrix @ camera_points
 
-    def image_points_to_world(self, image_points: jt.ArrayLike) -> jax.Array:
+    def image_points_to_camera(self, image_points: jt.ArrayLike) -> jax.Array:
         """Compute the direction of a ray from the camera origin to a point in the image.
 
         @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
-        @return Point coordinates in the world coordinate system. Shape: (point_count, 3). Last axis: x, y, z.
+        @return Point coordinates in the camera coordinate system. Shape: (point_count, 3). Last axis: x, y, z.
         """
         image_points = jnp.array(image_points)
         image_points_homogeneous = jnp.concatenate([image_points, jnp.ones((image_points.shape[0], 1))], axis=1)

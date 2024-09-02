@@ -90,12 +90,12 @@ def plot_sampled_rays():
         2.0,
     )
 
-    print(camera_params.image_points_to_world(jnp.array([[0.0, 0.0]])))
+    print(camera_params.image_points_to_camera(jnp.array([[0.0, 0.0]])))
 
     all_x, all_y = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
     all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
 
-    all_grid_points_camera_frame = camera_params.image_points_to_world(all_grid_points)
+    all_grid_points_camera_frame = camera_params.image_points_to_camera(all_grid_points)
     all_rays_towards_grid_points = jnp.concatenate(
         [
             jnp.zeros([all_grid_points_camera_frame.shape[0], 3]),
