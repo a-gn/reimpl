@@ -16,23 +16,23 @@ class CameraParams:
     ):
         """Initialize camera parameters.
 
-        @param intrinsic_matrix Intrinsic parameters, from camera frame to image coordinates. Shape: (3, 4).
         @param extrinsic_matrix Extrinsic parameters, from world frame to camera frame. Shape: (4, 4).
+        @param intrinsic_matrix Intrinsic parameters, from camera frame to image coordinates. Shape: (3, 3).
         @param focal_length Focal length of the camera.
         """
         self.world_to_camera = jnp.array(extrinsic_matrix)
-        if self.world_to_camera.shape != (3, 4):
+        if self.world_to_camera.shape != (4, 4):
             raise ValueError(
                 f"Expected camera matrix to have shape (3, 4), got {self.world_to_camera.shape}"
             )
         self.camera_to_world = jnp.array(numpy.linalg.inv(self.world_to_camera))
 
         self.camera_to_image = jnp.array(intrinsic_matrix)
-        if self.camera_to_image.shape != (3, 4):
+        if self.camera_to_image.shape != (3, 3):
             raise ValueError(
-                f"Expected camera matrix to have shape (3, 4), got {self.camera_to_image.shape}"
+                f"Expected camera matrix to have shape (3, 3), got {self.camera_to_image.shape}"
             )
-        self.image_to_camera = jnp.array(numpy.linalg.pinv(self.camera_to_image))
+        self.image_to_camera = jnp.array(numpy.linalg.inv(self.camera_to_image))
 
         self.focal_length = focal_length
         self.pixel_size_x = (1 / self.camera_to_image[0, 0]) * focal_length

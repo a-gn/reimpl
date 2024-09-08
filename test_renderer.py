@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
+import numpy
 import jax
 import jax.typing as jt
 
@@ -78,10 +79,17 @@ def plot_pos_encoding():
 # plot_pos_encoding()
 
 
-CAMERA_FRAME_ORIGIN = jnp.array([3.0, 2.5, 4.0])
+CAMERA_FRAME_ORIGIN = jnp.array([3.0, 2.5, 4.0, 1.0])
 CAMERA_FRAME_DIRECTIONS = jnp.array(
     [[-0.5, -0.5, -0.5], [-0.5, 0.5, -0.5], [-0.5, 0.0, 0.5]]
 )
+CAMERA_TO_WORLD_MATRIX = jnp.zeros((4, 4))
+CAMERA_TO_WORLD_MATRIX = CAMERA_TO_WORLD_MATRIX.at[:3, :3].set(
+    CAMERA_FRAME_DIRECTIONS.transpose()
+)
+CAMERA_TO_WORLD_MATRIX = CAMERA_TO_WORLD_MATRIX.at[:, 3].set(CAMERA_FRAME_ORIGIN)
+WORLD_TO_CAMERA_MATRIX = jnp.array(numpy.linalg.inv(CAMERA_TO_WORLD_MATRIX))
+CAMERA_INTRINSICS = jnp.array([[2.0, 0, 6], [0, 2.0, 6], [0, 0, 1]])
 
 
 def plot_coordinate_systems():
@@ -116,19 +124,14 @@ def plot_coordinate_systems():
     plt.show()
 
 
-plot_coordinate_systems()
+# plot_coordinate_systems()
 
 
 def plot_sampled_rays():
     camera_params = CameraParams(
-        jnp.array(
-            [
-                [4.0, 0.0, 0.0, 0.0],
-                [0.0, 4.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-            ]
-        ),
-        2.0,
+        WORLD_TO_CAMERA_MATRIX,
+        CAMERA_INTRINSICS,
+        4.0,
     )
 
     print(camera_params.image_points_to_camera(jnp.array([[0.0, 0.0]])))
@@ -183,3 +186,6 @@ def plot_sampled_rays():
     plot_pixels(fig_rays, ax_rays_nerf, all_grid_points_camera_frame)
 
     plt.show()
+
+
+plot_sampled_rays()
