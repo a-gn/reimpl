@@ -75,7 +75,48 @@ def plot_pos_encoding():
     print(pe)
 
 
-plot_pos_encoding()
+# plot_pos_encoding()
+
+
+CAMERA_FRAME_ORIGIN = jnp.array([3.0, 2.5, 4.0])
+CAMERA_FRAME_DIRECTIONS = jnp.array(
+    [[-0.5, -0.5, -0.5], [-0.5, 0.5, -0.5], [-0.5, 0.0, 0.5]]
+)
+
+
+def plot_coordinate_systems():
+    def plot_basis(origin: jt.ArrayLike, dxdydz: jt.ArrayLike, plt_axis):
+        """Plot quivers representing an orthonormal basis in 3D.
+
+        @param origin Origin of the coordinate system in world coordinates.
+        @param dxdydz Mutually orthogonal vectors representing the axes. Shape: (3, 3).
+        Dimensions: vector, then vector coordinates.
+        """
+
+        origin = jnp.array(origin)
+        assert origin.shape == (3,)
+        dxdydz = jnp.array(dxdydz)
+        assert dxdydz.shape == (3, 3)
+        for direction in range(3):
+            plt_axis.quiver(
+                origin[0],
+                origin[1],
+                origin[2],
+                dxdydz[direction, 0],
+                dxdydz[direction, 1],
+                dxdydz[direction, 2],
+                normalize=True,
+            )
+
+    ax = plt.figure().add_subplot(projection="3d")
+    ax.set_xlim(-5, 5)
+    ax.set_ylim(-5, 5)
+    ax.set_zlim(-5, 5)
+    plot_basis(CAMERA_FRAME_ORIGIN, CAMERA_FRAME_DIRECTIONS, ax)
+    plt.show()
+
+
+plot_coordinate_systems()
 
 
 def plot_sampled_rays():
