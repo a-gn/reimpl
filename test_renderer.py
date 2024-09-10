@@ -157,6 +157,8 @@ def plot_sampled_rays():
     print(regularly_sampled_rays)
     fig_rays, axes = plt.subplots(1, 2, subplot_kw={"projection": "3d"})
     ax_rays_regular, ax_rays_nerf = axes
+    ax_rays_regular.scatter([0], [0], [0], color="red")
+    ax_rays_nerf.scatter([0], [0], [0], color="red")
 
     ax_rays_regular.set_title("rays towards pixels, regular sampling")
     ax_rays_regular.text(1, 0, 0, "x-axis", "x")  # type: ignore
