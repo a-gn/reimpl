@@ -16,6 +16,27 @@ class SyntheticNeRFData:
     bds: jax.Array
     render_poses: jax.Array
     i_test: jax.Array
+    pinhole_extrinsics: jax.Array
+    pinhole_intrinsics: jax.Array
+
+
+def _get_camera_parameters(poses, imgs):
+    """Extract the extrinsic and intrinsic parameters of all cameras from the Synthetic NeRF dataset.
+
+    Ignore camera distortion. Assue a pinhole model.
+
+    Thanks Claude Sonnet 3.5.
+    """
+    # Extrinsic matrix (camera-to-world transform)
+    c2w = poses[:, :3, :4]  # Shape: (N, 3, 4) where N is the number of images
+
+    # Intrinsic matrix
+    H, W = imgs[0].shape[:2]  # Image height and width
+    focal = poses[0, 2, 4]  # Focal length is stored in poses[:, 2, 4]
+
+    K = jnp.array([[focal, 0, W / 2], [0, focal, H / 2], [0, 0, 1]])
+
+    return jnp.array(c2w), K
 
 
 def load_synthetic_nerf_dataset(
@@ -25,7 +46,7 @@ def load_synthetic_nerf_dataset(
     bd_factor=0.75,
     spherify=False,
     path_zflat=False,
-):
+) -> SyntheticNeRFData:
     """Load data from the Synthetic NeRF Dataset as JAX arrays.
 
     Format is the same as the original loader, besides using JAX arrays instead of NumPy arrays.
@@ -40,6 +61,13 @@ def load_synthetic_nerf_dataset(
         spherify=spherify,
         path_zflat=path_zflat,
     )
+    extrinsics, intrinsics = _get_camera_parameters(poses, images)
     return SyntheticNeRFData(
-        *(jnp.array(x) for x in (images, poses, bds, render_poses, i_test))
+        jnp.array(images),
+        jnp.array(poses),
+        jnp.array(bds),
+        jnp.array(render_poses),
+        jnp.array(i_test),
+        extrinsics,
+        intrinsics,
     )
