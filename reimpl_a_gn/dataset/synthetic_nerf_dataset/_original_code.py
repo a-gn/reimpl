@@ -48,8 +48,6 @@ def _minify(basedir, factors=[], resolutions=[]):
         if os.path.exists(imgdir):
             continue
 
-        print("Minifying", r, basedir)
-
         os.makedirs(imgdir)
         check_output("cp {}/* {}".format(imgdir_orig, imgdir), shell=True)
 
@@ -57,18 +55,15 @@ def _minify(basedir, factors=[], resolutions=[]):
         args = " ".join(
             ["mogrify", "-resize", resizearg, "-format", "png", "*.{}".format(ext)]
         )
-        print(args)
         os.chdir(imgdir)
         check_output(args, shell=True)
         os.chdir(wd)
 
         if ext != "png":
             check_output("rm {}/*.{}".format(imgdir, ext), shell=True)
-            print("Removed duplicates")
-        print("Done")
 
 
-def _load_data(basedir, factor=None, width=None, height=None, load_imgs=True):
+def _load_data(basedir, factor=None, width=None, height=None):
     poses_arr = np.load(os.path.join(basedir, "poses_bounds.npy"))
     poses = poses_arr[:, :-2].reshape([-1, 3, 5]).transpose([1, 2, 0])
     bds = poses_arr[:, -2:].transpose([1, 0])
@@ -119,16 +114,12 @@ def _load_data(basedir, factor=None, width=None, height=None, load_imgs=True):
     poses[:2, 4, :] = np.array(sh[:2]).reshape([2, 1])
     poses[2, 4, :] = poses[2, 4, :] * 1.0 / factor
 
-    if not load_imgs:
-        return poses, bds
-
     # I removed "ignoregamma" from imread because "Gamma correction is now not applied anymore by default"
     # https://github.com/imageio/imageio/issues/366#issuecomment-418336401
     # and Pillow 10 doesn't have that argument anymore
     imgs = imgs = [imageio.imread(f)[..., :3] / 255.0 for f in imgfiles]
     imgs = np.stack(imgs, -1)
 
-    print("Loaded image data", imgs.shape, poses[:, -1, 0])
     return poses, bds, imgs
 
 
@@ -270,7 +261,6 @@ def load_llff_data(
     poses, bds, imgs = _load_data(
         basedir, factor=factor
     )  # factor=8 downsamples original imgs by 8x
-    print("Loaded", basedir, bds.min(), bds.max())
 
     # Correct rotation matrix ordering and move variable dim to axis 0
     poses = np.concatenate([poses[:, 1:2, :], -poses[:, 0:1, :], poses[:, 2:, :]], 1)
@@ -292,8 +282,6 @@ def load_llff_data(
 
     else:
         c2w = poses_avg(poses)
-        print("recentered", c2w.shape)
-        print(c2w[:3, :4])
 
         ## Get spiral
         # Get average pose
@@ -306,7 +294,6 @@ def load_llff_data(
         focal = mean_dz
 
         # Get radii for spiral path
-        shrink_factor = 0.8
         zdelta = close_depth * 0.2
         tt = poses[:, :3, 3]  # ptstocam(poses[:3,3,:].T, c2w).T
         rads = np.percentile(np.abs(tt), 90, 0)
@@ -329,12 +316,9 @@ def load_llff_data(
     render_poses = np.array(render_poses).astype(np.float32)
 
     c2w = poses_avg(poses)
-    print("Data:")
-    print(poses.shape, images.shape, bds.shape)
 
     dists = np.sum(np.square(c2w[:3, 3] - poses[:, :3, 3]), -1)
     i_test = np.argmin(dists)
-    print("HOLDOUT view is", i_test)
 
     images = images.astype(np.float32)
     poses = poses.astype(np.float32)
