@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 import numpy
+
+from reimpl_a_gn.dataset.synthetic_nerf_dataset import load_synthetic_nerf_dataset
 import jax
 import jax.typing as jt
 
@@ -119,7 +121,7 @@ def plot_coordinate_systems(camera_origin, camera_directions):
     ax = plt.figure().add_subplot(projection="3d")
     ax.set_xlim(-5, 5)
     ax.set_ylim(-5, 5)
-    ax.set_zlim(-5, 5)
+    ax.set_zlim(-5, 5)  # type: ignore
     plot_basis(camera_origin, camera_directions, ax)
     plt.show()
 
@@ -190,4 +192,14 @@ def plot_sampled_rays(world_to_camera, camera_intrinsics):
     plt.show()
 
 
-plot_sampled_rays(WORLD_TO_CAMERA_MATRIX, CAMERA_INTRINSICS)
+# plot_sampled_rays(WORLD_TO_CAMERA_MATRIX, CAMERA_INTRINSICS)
+
+
+def test_load_data():
+    data = load_synthetic_nerf_dataset(
+        "/Volumes/ESSB/research/datasets/nerfs/synthetic nerf dataset (original paper)/NeRF_Data/nerf_llff_data/flower"
+    )
+    print(f"image array shape: {data.images.shape}")
+
+
+test_load_data()

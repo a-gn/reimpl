@@ -122,13 +122,10 @@ def _load_data(basedir, factor=None, width=None, height=None, load_imgs=True):
     if not load_imgs:
         return poses, bds
 
-    def imread(f):
-        if f.endswith("png"):
-            return imageio.imread(f, ignoregamma=True)
-        else:
-            return imageio.imread(f)
-
-    imgs = imgs = [imread(f)[..., :3] / 255.0 for f in imgfiles]
+    # I removed "ignoregamma" from imread because "Gamma correction is now not applied anymore by default"
+    # https://github.com/imageio/imageio/issues/366#issuecomment-418336401
+    # and Pillow 10 doesn't have that argument anymore
+    imgs = imgs = [imageio.imread(f)[..., :3] / 255.0 for f in imgfiles]
     imgs = np.stack(imgs, -1)
 
     print("Loaded image data", imgs.shape, poses[:, -1, 0])
