@@ -92,7 +92,7 @@ WORLD_TO_CAMERA_MATRIX = jnp.array(numpy.linalg.inv(CAMERA_TO_WORLD_MATRIX))
 CAMERA_INTRINSICS = jnp.array([[2.0, 0, 6], [0, 2.0, 6], [0, 0, 1]])
 
 
-def plot_coordinate_systems():
+def plot_coordinate_systems(camera_origin, camera_directions):
     def plot_basis(origin: jt.ArrayLike, dxdydz: jt.ArrayLike, plt_axis):
         """Plot quivers representing an orthonormal basis in 3D.
 
@@ -102,14 +102,14 @@ def plot_coordinate_systems():
         """
 
         origin = jnp.array(origin)
-        assert origin.shape == (3,)
+        assert origin.shape == (4,)
         dxdydz = jnp.array(dxdydz)
         assert dxdydz.shape == (3, 3)
         for direction in range(3):
             plt_axis.quiver(
-                origin[0],
-                origin[1],
-                origin[2],
+                origin[0] / origin[3],
+                origin[1] / origin[3],
+                origin[2] / origin[3],
                 dxdydz[direction, 0],
                 dxdydz[direction, 1],
                 dxdydz[direction, 2],
@@ -120,17 +120,17 @@ def plot_coordinate_systems():
     ax.set_xlim(-5, 5)
     ax.set_ylim(-5, 5)
     ax.set_zlim(-5, 5)
-    plot_basis(CAMERA_FRAME_ORIGIN, CAMERA_FRAME_DIRECTIONS, ax)
+    plot_basis(camera_origin, camera_directions, ax)
     plt.show()
 
 
-# plot_coordinate_systems()
+# plot_coordinate_systems(CAMERA_FRAME_ORIGIN, CAMERA_FRAME_DIRECTIONS)
 
 
-def plot_sampled_rays():
+def plot_sampled_rays(world_to_camera, camera_intrinsics):
     camera_params = CameraParams(
-        WORLD_TO_CAMERA_MATRIX,
-        CAMERA_INTRINSICS,
+        world_to_camera,
+        camera_intrinsics,
         4.0,
     )
 
@@ -190,4 +190,4 @@ def plot_sampled_rays():
     plt.show()
 
 
-plot_sampled_rays()
+plot_sampled_rays(WORLD_TO_CAMERA_MATRIX, CAMERA_INTRINSICS)

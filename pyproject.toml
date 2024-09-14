@@ -20,6 +20,7 @@ jaxlib = "^0.4.31"
 matplotlib = "^3.9.2"
 jax-metal = "^0.1.0"
 optax = "^0.2.3"
+imageio = "^2.35.1"
 
 [[tool.poetry.source]]
 name = "PyPI"
