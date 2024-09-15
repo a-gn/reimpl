@@ -203,7 +203,7 @@ def test_load_data():
     for array_name in ("images", "bds", "poses", "render_poses"):
         print(f"shape of {array_name} array: {getattr(data, array_name).shape}")
     print(f"holdout image index: {data.i_test}")
-    plot_cameras(data.cameras)
+    plot_cameras(data.cameras, data.i_test)
 
 
 test_load_data()
