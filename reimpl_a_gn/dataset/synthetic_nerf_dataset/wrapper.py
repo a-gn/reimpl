@@ -12,12 +12,23 @@ import jax
 @dataclass
 class SyntheticNeRFData:
     images: jax.Array
+    """All images. Shape: (image_count, height, width, RGB); normalized to [0, 1]."""
     poses: jax.Array
+    """Camera poses for all images. Shape: (image_count, 3, 5).
+    3x4 camera-to-world matrix, then (height, width, focal_length) in the fifth column.
+    """
     bds: jax.Array
+    """Near and far bounds for each image. Shape: (image_count, 2). Last axis: near depth, then far depth."""
     render_poses: jax.Array
-    i_test: jax.Array
+    """Camera poses for novel views. Shape: (novel_view_count, 3, 5).
+    3x4 camera-to-world matrix, then (height, width, focal_length) in the fifth column.
+    """
+    i_test: int
+    """Index of the test image. Not supposed to be used in training."""
     pinhole_extrinsics: jax.Array
+    """Extrinsic matrix of the camera, assuming a pinhole model and ignoring distortion."""
     pinhole_intrinsics: jax.Array
+    """Intrinsic matrix of the camera, assuming a pinhole model and ignoring distortion."""
 
 
 def _get_camera_parameters(poses, imgs):
@@ -67,7 +78,7 @@ def load_synthetic_nerf_dataset(
         jnp.array(poses),
         jnp.array(bds),
         jnp.array(render_poses),
-        jnp.array(i_test),
+        int(i_test),
         extrinsics,
         intrinsics,
     )
