@@ -50,7 +50,9 @@ def _get_camera_parameters(poses, imgs):
 
     # Intrinsic matrix
     H, W = imgs[0].shape[:2]  # Image height and width
-    focal = poses[0, 2, 4]  # Focal length is stored in poses[:, 2, 4]
+    focal = poses[
+        0, 2, 4
+    ]  # Focal length is stored in poses[:, 2, 4], we assume that it's the same for every camera
 
     intrinsic_matrix = jnp.array([[focal, 0, W / 2], [0, focal, H / 2], [0, 0, 1]])
 
