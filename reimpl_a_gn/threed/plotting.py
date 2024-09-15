@@ -11,7 +11,7 @@ def make_non_homogeneous(point):
 
 
 def plot_cameras(cameras: list[CameraParams], marked_camera: int | None = None):
-    """Plot the position, direction, and image pixels for multiple cameras. Run `plt.show()`, blocking.
+    """Plot the position and direction for multiple cameras. Run `plt.show()`, blocking.
 
     @param marked_camera Plot this camera with a different style. Useful to e.g. show the holdout view in a NeRF.
     """
