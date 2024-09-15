@@ -199,7 +199,9 @@ def test_load_data():
     data = load_synthetic_nerf_dataset(
         "/Volumes/ESSB/research/datasets/nerfs/synthetic nerf dataset (original paper)/NeRF_Data/nerf_llff_data/flower"
     )
-    print(f"image array shape: {data.images.shape}")
+    for array_name in ("images", "bds", "poses", "render_poses"):
+        print(f"shape of {array_name} array: {getattr(data, array_name).shape}")
+    print(f"holdout image index: {data.i_test}")
 
 
 test_load_data()

@@ -25,10 +25,6 @@ class SyntheticNeRFData:
     """
     i_test: int
     """Index of the test image. Not supposed to be used in training."""
-    pinhole_extrinsics: jax.Array
-    """Extrinsic matrix of the camera, assuming a pinhole model and ignoring distortion."""
-    pinhole_intrinsics: jax.Array
-    """Intrinsic matrix of the camera, assuming a pinhole model and ignoring distortion."""
 
 
 def _get_camera_parameters(poses, imgs):
