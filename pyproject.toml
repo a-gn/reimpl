@@ -18,7 +18,6 @@ isort = {version = "^5.13.2", extras = ["dev"]}
 jax = "^0.4.31"
 jaxlib = "^0.4.31"
 matplotlib = "^3.9.2"
-jax-metal = "^0.1.0"
 optax = "^0.2.3"
 imageio = "^2.35.1"
 

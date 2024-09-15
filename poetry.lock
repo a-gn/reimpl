@@ -707,23 +707,6 @@ minimum-jaxlib = ["jaxlib (==0.4.30)"]
 tpu = ["jaxlib (==0.4.31)", "libtpu-nightly (==0.1.dev20240729)", "requests"]
 
 [[package]]
-name = "jax-metal"
-version = "0.1.0"
-description = "JAX acceleration for Mac GPUs."
-optional = false
-python-versions = "*"
-files = [
-    {file = "jax_metal-0.1.0-py3-none-macosx_10_14_x86_64.whl", hash = "sha256:6cbd62a2068fcadea9c22689c12905e6fe0f58da2230fe2beba263132258cc54"},
-    {file = "jax_metal-0.1.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:68006a39d331674880265361f612fcb0e3314a220245c05b8c27d204077de085"},
-]
-
-[package.dependencies]
-jax = ">=0.4.26"
-jaxlib = ">=0.4.26"
-six = ">=1.15.0"
-wheel = ">=0.35,<1.0"
-
-[[package]]
 name = "jaxlib"
 version = "0.4.31"
 description = "XLA library for JAX"
@@ -1849,4 +1832,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "9ae25529887cb7fb85b87f9df04318728fb919f756330cf6b903912d425cf06f"
+content-hash = "a0e7b97e00e40022a53abf5068e8e51247871660439c5b144a29a446cefad170"

@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import numpy
 
 from reimpl_a_gn.dataset.synthetic_nerf_dataset import load_synthetic_nerf_dataset
+from reimpl_a_gn.threed.plotting import plot_cameras
 import jax
 import jax.typing as jt
 
@@ -202,6 +203,7 @@ def test_load_data():
     for array_name in ("images", "bds", "poses", "render_poses"):
         print(f"shape of {array_name} array: {getattr(data, array_name).shape}")
     print(f"holdout image index: {data.i_test}")
+    plot_cameras(data.cameras)
 
 
 test_load_data()

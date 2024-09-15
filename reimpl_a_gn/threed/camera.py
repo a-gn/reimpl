@@ -31,7 +31,7 @@ class CameraParams:
             raise ValueError(
                 f"Expected camera matrix to have shape (3, 3), got {self.camera_to_image.shape}"
             )
-        self.image_to_camera = jnp.array(numpy.linalg.inv(self.camera_to_image))
+        self._image_to_camera = jnp.array(numpy.linalg.inv(self.camera_to_image))
 
         self.focal_length = focal_length
         self.pixel_size_x = (1 / self.camera_to_image[0, 0]) * focal_length
@@ -49,7 +49,7 @@ class CameraParams:
         image_points_homogeneous = jnp.concatenate(
             [image_points, jnp.ones((image_points.shape[0], 1))], axis=1
         )
-        inverse_camera_matrix = self.image_to_camera
+        inverse_camera_matrix = self._image_to_camera
         return (
             inverse_camera_matrix @ image_points_homogeneous.transpose()
         ).transpose()
