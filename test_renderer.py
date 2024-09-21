@@ -1,18 +1,17 @@
-import matplotlib.pyplot as plt
+import jax
 import jax.numpy as jnp
+import jax.typing as jt
+import matplotlib.pyplot as plt
 import numpy
 
 from reimpl_a_gn.dataset.synthetic_nerf_dataset import load_synthetic_nerf_dataset
 from reimpl_a_gn.threed.plotting import plot_cameras
-import jax
-import jax.typing as jt
-
 from reimpl_a_gn.threed.rendering import (
-    sample_rays_towards_all_pixels,
-    sample_regular_positions_along_rays,
-    sample_nerf_rendering_positions_along_rays,
     CameraParams,
     compute_nerf_positional_encoding,
+    sample_nerf_rendering_positions_along_rays,
+    sample_rays_towards_all_pixels,
+    sample_regular_positions_along_rays,
 )
 
 
@@ -215,7 +214,6 @@ def test_sample_rays_from_actual_cameras():
     )
     camera_params = data.cameras[0]
     rays = sample_rays_towards_all_pixels(camera_params, 10, 10)
-    rays = sample_regular_positions_along_rays(rays, 0, 10, 5)
 
     all_x, all_y = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
     all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
@@ -233,7 +231,10 @@ def test_sample_rays_from_actual_cameras():
         ax.scatter(points[:, 0], points[:, 1], points[:, 2])
 
     regularly_sampled_rays = sample_regular_positions_along_rays(
-        all_rays_towards_grid_points, 0.5, 3.0, 3
+        all_rays_towards_grid_points,
+        camera_params.focal_length / 2,
+        camera_params.focal_length * 3,
+        7,
     )
     print(regularly_sampled_rays)
     fig_rays, axes = plt.subplots(1, 2, subplot_kw={"projection": "3d"})
@@ -254,7 +255,11 @@ def test_sample_rays_from_actual_cameras():
     plot_pixels(ax_rays_regular, all_grid_points_camera_frame)
 
     nerf_sampled_rays = sample_nerf_rendering_positions_along_rays(
-        all_rays_towards_grid_points, 0.5, 3.0, 3, jax.random.PRNGKey(0)
+        all_rays_towards_grid_points,
+        camera_params.focal_length / 2,
+        camera_params.focal_length * 3,
+        7,
+        jax.random.PRNGKey(0),
     )
     ax_rays_nerf.set_title("rays towards pixels, NeRF (bins) sampling")
     ax_rays_nerf.text(1, 0, 0, "x-axis", "x")  # type: ignore

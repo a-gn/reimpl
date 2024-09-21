@@ -35,3 +35,6 @@ minversion = "7.0"
 testpaths = [
     "test",
 ]
+pythonpath = [
+    ".",
+]

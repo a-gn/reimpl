@@ -53,3 +53,27 @@ class CameraParams:
         return (
             inverse_camera_matrix @ image_points_homogeneous.transpose()
         ).transpose()
+
+
+def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
+    """ "Create a pinhole camera's extrinsic matrix from its position and direction.
+
+    @param position Origin of the camera in world coordinates. Shape: (3,). Order: x, y, z.
+    @param direction Viewing direction of the camera in world coordinates. Shape: (3,). Order: dx, dy, dz.
+    @return Extrinsic matrix, transforms from world coordinates to camera coordinates. Shape: (4, 4).
+    """
+    direction = jnp.array(direction)
+    position = jnp.array(position)
+    # compute the inverse: from camera coordinates to world coordinates
+    inverse_extrinsic = jnp.array(
+        [
+            [direction[0], 0, 0, position[0]],
+            [0, direction[1], 0, position[1]],
+            [0, 0, direction[2], position[2]],
+            [0, 0, 0, 1],
+        ],
+        dtype=float,
+    )
+    extrinsic = jnp.array(numpy.linalg.inv(inverse_extrinsic))
+    assert extrinsic.shape == (4, 4)
+    return extrinsic

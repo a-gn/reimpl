@@ -3,10 +3,13 @@ import jax.lax as lax
 import jax.numpy as jnp
 import jax.typing as jt
 import numpy  # some operations aren't supported on jax-metal
+
 from reimpl_a_gn.threed.camera import CameraParams
 
 
-def get_ray_to_image_coordinates(camera_params: CameraParams, pixel_row: float, pixel_col: float) -> jax.Array:
+def get_ray_to_image_coordinates(
+    camera_params: CameraParams, pixel_row: float, pixel_col: float
+) -> jax.Array:
     """Compute the direction of a ray from the camera origin to a point in the image.
 
     Assumes that the camera is at the origin and looks along the z-axis.
@@ -18,11 +21,13 @@ def get_ray_to_image_coordinates(camera_params: CameraParams, pixel_row: float, 
     Shape: (image_height, image_width, 3). Last axis: x, y, z.
     """
     principal_point_world = jnp.array([0, 0, camera_params.focal_length])
-    pixel_center = jnp.array([
-        principal_point_world[0] + camera_params.pixel_size_x * pixel_col,
-        principal_point_world[1] + camera_params.pixel_size_y * pixel_row,
-        principal_point_world[2],
-    ])
+    pixel_center = jnp.array(
+        [
+            principal_point_world[0] + camera_params.pixel_size_x * pixel_col,
+            principal_point_world[1] + camera_params.pixel_size_y * pixel_row,
+            principal_point_world[2],
+        ]
+    )
     origin_to_pixel = pixel_center
     assert jnp.linalg.norm(origin_to_pixel, ord=2) > 0.0
     origin_to_pixel = origin_to_pixel / jnp.linalg.norm(origin_to_pixel, ord=2)
@@ -36,10 +41,10 @@ def sample_rays_towards_all_pixels(
 ) -> jax.Array:
     """Sample parameters of rays through a pinhole camera, which can be used to render an image.
 
-    @param camera_params Camera matrix. Shape: (3, 4).
+    @param camera_params Pinhole camera parameters.
     @param image_height Pixel row count of the image we want to render.
     @param image_width Pixel column count of the image we want to render.
-    @return Ray parameters. Shape: (image_height, image_width, 6). Second axis: x, y, z, dx, dy, dz.
+    @return Ray parameters. Shape: (image_height, image_width, 6). Third axis: x, y, z, dx, dy, dz.
     """
     ray_coords = jnp.zeros((image_height, image_width, 6), dtype=jnp.float32)
     for row_i in range(image_height):
@@ -47,6 +52,43 @@ def sample_rays_towards_all_pixels(
             ray_direction = get_ray_to_image_coordinates(camera_params, row_i, col_i)
             ray_coords = ray_coords.at[row_i, col_i, 3:6].set(ray_direction)
     return ray_coords
+
+
+def sample_random_rays_in_image(
+    camera_params: CameraParams,
+    image_height: int,
+    image_width: int,
+    sample_count: int,
+    prng_key: jt.ArrayLike,
+) -> jax.Array:
+    """Sample parameters of rays through a pinhole camera, with random directions.
+
+    Choose random points continuously, uniformly inside the image, and return their direction from the camera.
+
+    @param camera_params Pinhole camera parameters.
+    @param image_height Pixel row count of the image.
+    @param image_width Pixel column count of the image.
+    @param sample_count Number of points to sample.
+    @param prng_key Key for jax.random.
+    @return Ray parameters in camera coordinates. Shape: (sample_count, 6). Second axis: x, y, z, dx, dy, dz.
+    """
+    prng_key = jnp.array(prng_key)
+    positions_in_image = jax.random.uniform(
+        prng_key,
+        (sample_count, 2),
+        jnp.array((0, 0)),
+        jnp.array((image_height, image_width)),
+    )
+    rays = jnp.zeros((sample_count, 6), dtype=float)
+    for sample_id in range(sample_count):
+        rays = rays.at[sample_id].set(
+            get_ray_to_image_coordinates(
+                camera_params,
+                positions_in_image[sample_id, 0].item(),
+                positions_in_image[sample_id, 1].item(),
+            )
+        )
+    return rays
 
 
 def sample_regular_positions_along_rays(
