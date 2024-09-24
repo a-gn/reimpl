@@ -56,7 +56,9 @@ class CameraParams:
 
 
 def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
-    """ "Create a pinhole camera's extrinsic matrix from its position and direction.
+    """Create a pinhole camera's extrinsic matrix from its position and direction.
+
+    This converts to numpy then back, because as of writing, Apple Silicon JAX doesn't support jnp.linalg.inv.
 
     @param position Origin of the camera in world coordinates. Shape: (3,). Order: x, y, z.
     @param direction Viewing direction of the camera in world coordinates. Shape: (3,). Order: dx, dy, dz.
@@ -64,6 +66,7 @@ def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
     """
     direction = jnp.array(direction)
     position = jnp.array(position)
+    position = position / jnp.sqrt(jnp.sum(position**2))
     # compute the inverse: from camera coordinates to world coordinates
     inverse_extrinsic = jnp.array(
         [
@@ -77,3 +80,41 @@ def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
     extrinsic = jnp.array(numpy.linalg.inv(inverse_extrinsic))
     assert extrinsic.shape == (4, 4)
     return extrinsic
+
+
+def intrinsic_matrix_from_params(
+    focal_length: tuple[float, float],
+    image_height: int,
+    image_width: int,
+    skew: float = 0,
+):
+    """Create the intrinsic matrix of a pinhole camera.
+
+    @param focal_length Focal lengths for x and y axes, in meters.
+    @param principal_point x and y pixel coordinates of the intersection between the image plane and the camera's
+    z-axis.
+    @param pixel_size Size of a pixel on the x, then y axes.
+    @param image_height Number of rows of pixels in the image.
+    @param image_width Number of columns of pixels in the image.
+    @param skew Skew parameter.
+    @return Intrinsic matrix from camera frame to image frame. Size: (3, 3).
+    """
+
+    principal_point_x = image_width / 2
+    principal_point_y = image_height / 2
+    return jnp.array(
+        [
+            [
+                focal_length[0],
+                skew,
+                principal_point_x,
+            ],
+            [
+                0,
+                focal_length[1],
+                principal_point_y,
+            ],
+            [0, 0, 1],
+        ],
+        dtype=float,
+    )

@@ -54,7 +54,7 @@ def sample_rays_towards_all_pixels(
     return ray_coords
 
 
-def sample_random_rays_in_image(
+def sample_random_rays_toward_image(
     camera_params: CameraParams,
     image_height: int,
     image_width: int,
