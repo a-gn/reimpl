@@ -144,7 +144,9 @@ def plot_sampled_rays(world_to_camera, camera_intrinsics):
     all_grid_points_camera_frame = camera_params.image_points_to_camera(all_grid_points)
     all_rays_towards_grid_points = jnp.concatenate(
         [
+            # origins at zero
             jnp.zeros([all_grid_points_camera_frame.shape[0], 3]),
+            # directions are just points (origin is at 0)
             all_grid_points_camera_frame[:, :3],
         ],
         1,
@@ -210,25 +212,41 @@ def test_load_data():
 
 def test_sample_rays_from_actual_cameras():
     data = load_synthetic_nerf_dataset(
-        "/Volumes/ESSB/research/datasets/nerfs/synthetic nerf dataset (original paper)/NeRF_Data/nerf_llff_data/flower"
+        "/Users/arno/projects/3d-reconstruction/nerf/datasets/flower"
     )
     camera_params = data.cameras[0]
-    rays = sample_rays_towards_all_pixels(camera_params, 10, 10)
+    rays_camera_frame = sample_rays_towards_all_pixels(camera_params, 10, 10)
+    # we will work with two axes and reshape at the end
+    rays_world_frame_flat = jnp.zeros(jnp.array(rays_camera_frame.reshape(-1, 8).shape))
+    print(rays_world_frame_flat.shape)
+    rays_camera_frame_flat = rays_camera_frame.reshape(-1, 8)
+    # transform ray origins
+    rays_world_frame_flat = rays_world_frame_flat.at[:, :4].set(
+        (camera_params.camera_to_world @ rays_camera_frame_flat[:, :4].T).T
+    )
+    # transform ray directions
+    rays_world_frame_flat = rays_world_frame_flat.at[:, 4:8].set(
+        (camera_params.camera_to_world @ rays_camera_frame_flat[..., 4:8].T).T
+    )
+    # reshape to original dimensions
+    rays_world_frame = rays_world_frame_flat.reshape(rays_camera_frame.shape)
 
     all_x, all_y = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
-    all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
-
-    all_grid_points_camera_frame = camera_params.image_points_to_camera(all_grid_points)
-    all_rays_towards_grid_points = jnp.concatenate(
-        [
-            jnp.zeros([all_grid_points_camera_frame.shape[0], 3]),
-            all_grid_points_camera_frame[:, :3],
-        ],
-        1,
-    )
+    # all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
+    #
+    # all_grid_points_camera_frame = camera_params.image_points_to_camera(all_grid_points)
+    # all_rays_towards_grid_points = jnp.concatenate(
+    #     [
+    #         jnp.zeros([all_grid_points_camera_frame.shape[0], 3]),
+    #         all_grid_points_camera_frame[:, :3],
+    #     ],
+    #     1,
+    # )
 
     def plot_pixels(ax: plt.Axes, points: jnp.ndarray):  # type: ignore
         ax.scatter(points[:, 0], points[:, 1], points[:, 2])
+
+    all_rays_towards_grid_points = rays_world_frame_flat
 
     regularly_sampled_rays = sample_regular_positions_along_rays(
         all_rays_towards_grid_points,
@@ -237,7 +255,7 @@ def test_sample_rays_from_actual_cameras():
         7,
     )
     print(regularly_sampled_rays)
-    fig_rays, axes = plt.subplots(1, 2, subplot_kw={"projection": "3d"})
+    _, axes = plt.subplots(1, 2, subplot_kw={"projection": "3d"})
     ax_rays_regular, ax_rays_nerf = axes
     ax_rays_regular.scatter([0], [0], [0], color="red")
     ax_rays_nerf.scatter([0], [0], [0], color="red")

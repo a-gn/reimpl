@@ -18,7 +18,7 @@ def get_ray_to_image_coordinates(
     @param pixel_row Row index of the pixel. Can be a float to represent subpixel positions.
     @param pixel_col Column index of the pixel. Can be a float to represent subpixel positions.
     @return Unit vector in the direction of the ray from camera origin to a point in the image plane.
-    Shape: (image_height, image_width, 3). Last axis: x, y, z.
+    Shape: (image_height, image_width, 4). Last axis: x, y, z, w.
     """
     principal_point_world = jnp.array([0, 0, camera_params.focal_length])
     pixel_center = jnp.array(
@@ -26,6 +26,7 @@ def get_ray_to_image_coordinates(
             principal_point_world[0] + camera_params.pixel_size_x * pixel_col,
             principal_point_world[1] + camera_params.pixel_size_y * pixel_row,
             principal_point_world[2],
+            1,
         ]
     )
     origin_to_pixel = pixel_center
@@ -44,13 +45,14 @@ def sample_rays_towards_all_pixels(
     @param camera_params Pinhole camera parameters.
     @param image_height Pixel row count of the image we want to render.
     @param image_width Pixel column count of the image we want to render.
-    @return Ray parameters. Shape: (image_height, image_width, 6). Third axis: x, y, z, dx, dy, dz.
+    @return Ray parameters, homogeneous. Shape: (image_height, image_width, 6). Third axis: x, y, z, w1, dx, dy, dz, w2.
+    The origin of rays is always at the camera center. Since we're in camera frame, the origin is always zero.
     """
-    ray_coords = jnp.zeros((image_height, image_width, 6), dtype=jnp.float32)
+    ray_coords = jnp.zeros((image_height, image_width, 8), dtype=jnp.float32)
     for row_i in range(image_height):
         for col_i in range(image_width):
             ray_direction = get_ray_to_image_coordinates(camera_params, row_i, col_i)
-            ray_coords = ray_coords.at[row_i, col_i, 3:6].set(ray_direction)
+            ray_coords = ray_coords.at[row_i, col_i, 4:8].set(ray_direction)
     return ray_coords
 
 
@@ -70,7 +72,7 @@ def sample_random_rays_toward_image(
     @param image_width Pixel column count of the image.
     @param sample_count Number of points to sample.
     @param prng_key Key for jax.random.
-    @return Ray parameters in camera coordinates. Shape: (sample_count, 6). Second axis: x, y, z, dx, dy, dz.
+    @return Ray parameters in camera coordinates. Shape: (sample_count, 8). Second axis: x, y, z, w1, dx, dy, dz, w2.
     """
     prng_key = jnp.array(prng_key)
     positions_in_image = jax.random.uniform(
@@ -79,7 +81,7 @@ def sample_random_rays_toward_image(
         jnp.array((0, 0)),
         jnp.array((image_height, image_width)),
     )
-    rays = jnp.zeros((sample_count, 6), dtype=float)
+    rays = jnp.zeros((sample_count, 8), dtype=float)
     for sample_id in range(sample_count):
         rays = rays.at[sample_id].set(
             get_ray_to_image_coordinates(
@@ -96,25 +98,36 @@ def sample_regular_positions_along_rays(
 ) -> jax.Array:
     """Compute regular positions along a set of rays.
 
-    @param rays Ray parameters. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
+    @param rays Ray parameters. Shape: (..., 8). Last axis: x, y, z, w1, dx, dy, dz, w2.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param pos_per_ray Number of positions to sample along each ray.
-    @return Positions along rays. Shape: (..., pos_per_ray, 3). Last axis: x, y, z.
+    @return Positions along rays. Shape: (..., pos_per_ray, 4). Last axis: x, y, z, w.
     """
+    assert rays.shape[-1] == 8
     rays = jnp.array(rays)
-    result = jnp.zeros(list(rays.shape[:-1]) + [pos_per_ray, 3], dtype=jnp.float32)
-    ray_origins = rays[..., :3]
-    ray_directions = rays[..., 3:]
+    result = jnp.zeros(list(rays.shape[:-1]) + [pos_per_ray, 4], dtype=jnp.float32)
+    # make coordinates non-homogeneous
+    ray_origins = rays[..., :3] / rays[..., 3:4]
+    ray_directions = rays[..., 4:7] / rays[..., 7:8]
     norm_ray_directions = ray_directions / jnp.expand_dims(
         (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), -1
     )
+    assert ray_origins.shape[-1] == 3
+    assert norm_ray_directions.shape[-1] == 3
     distance_interval = (far_distance - near_distance) / pos_per_ray
     for pos_i in range(1, pos_per_ray + 1):
-        result = result.at[..., pos_i - 1, :].set(
-            ray_origins
-            + norm_ray_directions * (near_distance + pos_i * distance_interval)
+        sampled_positions = ray_origins + norm_ray_directions * (
+            near_distance + pos_i * distance_interval
         )
+        assert sampled_positions.shape[-1] == 3
+        # make samples homogeneous again
+        sampled_positions = jnp.concatenate(
+            [sampled_positions, jnp.ones(tuple(sampled_positions.shape[:-1]) + (1,))],
+            axis=-1,
+        )
+        assert sampled_positions.shape[-1] == 4
+        result = result.at[..., pos_i - 1, :].set(sampled_positions)
     return result
 
 
@@ -127,16 +140,17 @@ def sample_nerf_rendering_positions_along_rays(
 ):
     """Split (near, far) into regularly-sized bins, then randomly sample one position per bin uniformly.
 
-    @param rays Ray parameters. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
+    @param rays Ray parameters. Shape: (..., 8). Last axis: x, y, z, dx, dy, dz.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
-    @return Points sampled uniformly for each bin, for each ray. Shape: (..., bins_per_ray, 3). Last axis: x, y, z.
+    @return Points sampled uniformly for each bin, for each ray. Shape: (..., bins_per_ray, 4). Last axis: x, y, z, w.
     """
     rays = jnp.array(rays)
-    result = jnp.zeros(list(rays.shape[:-1]) + [bins_per_ray, 3], dtype=jnp.float32)
-    ray_origins = rays[..., :3]
-    ray_directions = rays[..., 3:]
+    result = jnp.zeros(list(rays.shape[:-1]) + [bins_per_ray, 4], dtype=jnp.float32)
+    # make coordinates non-homogeneous
+    ray_origins = rays[..., :3] / rays[..., 3]
+    ray_directions = rays[..., 4:7] / rays[..., 7]
     norm_ray_directions = ray_directions / jnp.expand_dims(
         (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), -1
     )
@@ -153,10 +167,14 @@ def sample_nerf_rendering_positions_along_rays(
             minval=bin_start,
             maxval=bin_end,
         )
-        sampled_points = ray_origins + norm_ray_directions * jnp.expand_dims(
+        sampled_positions = ray_origins + norm_ray_directions * jnp.expand_dims(
             position_on_ray, -1
         )
-        result = result.at[..., bin_i - 1, :].set(sampled_points)
+        # make samples homogeneous again
+        sampled_positions = jnp.concatenate(
+            [sampled_positions, jnp.ones(sampled_positions.shape)], axis=-1
+        )
+        result = result.at[..., bin_i - 1, :].set(sampled_positions)
     return result
 
 
