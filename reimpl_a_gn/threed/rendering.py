@@ -1,3 +1,5 @@
+from functools import partial
+
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
@@ -7,6 +9,7 @@ import numpy  # some operations aren't supported on jax-metal
 from reimpl_a_gn.threed.camera import CameraParams
 
 
+@partial(jax.jit, static_argnames=["camera_params"])
 def get_ray_to_image_coordinates(
     camera_params: CameraParams, pixel_row: float, pixel_col: float
 ) -> jax.Array:
@@ -30,32 +33,34 @@ def get_ray_to_image_coordinates(
         ]
     )
     origin_to_pixel = pixel_center
-    assert jnp.linalg.norm(origin_to_pixel, ord=2) > 0.0
     origin_to_pixel = origin_to_pixel / jnp.linalg.norm(origin_to_pixel, ord=2)
     return origin_to_pixel
 
 
-def sample_rays_towards_all_pixels(
+@partial(jax.jit, static_argnames=["camera_params"])
+def sample_rays_towards_pixels(
     camera_params: CameraParams,
-    image_height: int,
-    image_width: int,
+    points: jt.ArrayLike,
 ) -> jax.Array:
-    """Sample parameters of rays through a pinhole camera, which can be used to render an image.
+    """Sample parameters of rays towards pixels in a pinhole camera.
 
     @param camera_params Pinhole camera parameters.
-    @param image_height Pixel row count of the image we want to render.
-    @param image_width Pixel column count of the image we want to render.
-    @return Ray parameters, homogeneous. Shape: (image_height, image_width, 6). Third axis: x, y, z, w1, dx, dy, dz, w2.
+    @param points Pixel coordinates in the camera's image. Coordinates start in the upper-left corner.
+    Shape: (point_count, 2) where the second axis is x, y.
+    @return Ray parameters, homogeneous. Shape: (point_count, 6). Third axis: x, y, z, w1, dx, dy, dz, w2.
     The origin of rays is always at the camera center. Since we're in camera frame, the origin is always zero.
     """
-    ray_coords = jnp.zeros((image_height, image_width, 8), dtype=jnp.float32)
-    for row_i in range(image_height):
-        for col_i in range(image_width):
-            ray_direction = get_ray_to_image_coordinates(camera_params, row_i, col_i)
-            ray_coords = ray_coords.at[row_i, col_i, 4:8].set(ray_direction)
+    points = jnp.array(points)
+    assert len(points.shape) == 2
+    assert points.shape[1] == 2
+    ray_coords = jnp.zeros((len(points), 8), dtype=jnp.float32)
+    for point_index, (x, y) in enumerate(points):
+        ray_direction = get_ray_to_image_coordinates(camera_params, x, y)
+        ray_coords = ray_coords.at[point_index, 4:8].set(ray_direction)
     return ray_coords
 
 
+@partial(jax.jit, static_argnames=["camera_params"])
 def sample_random_rays_toward_image(
     camera_params: CameraParams,
     image_height: int,
@@ -93,6 +98,7 @@ def sample_random_rays_toward_image(
     return rays
 
 
+# @partial(jax.jit, static_argnames=["pos_per_ray"])
 def sample_regular_positions_along_rays(
     rays: jax.Array, near_distance: float, far_distance: float, pos_per_ray: int
 ) -> jax.Array:
@@ -106,7 +112,8 @@ def sample_regular_positions_along_rays(
     """
     assert rays.shape[-1] == 8
     rays = jnp.array(rays)
-    result = jnp.zeros(list(rays.shape[:-1]) + [pos_per_ray, 4], dtype=jnp.float32)
+    result_shape = jnp.array([*rays.shape[:-1], pos_per_ray, 4], dtype=int)
+    result = jnp.zeros(result_shape, dtype=jnp.float32)
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
     ray_directions = rays[..., 4:7] / rays[..., 7:8]
@@ -120,6 +127,9 @@ def sample_regular_positions_along_rays(
         sampled_positions = ray_origins + norm_ray_directions * (
             near_distance + pos_i * distance_interval
         )
+        print(
+            f"nans in sampled positions for bin {pos_i}: {jnp.sum(jnp.isnan(sampled_positions))}"
+        )
         assert sampled_positions.shape[-1] == 3
         # make samples homogeneous again
         sampled_positions = jnp.concatenate(
@@ -131,6 +141,7 @@ def sample_regular_positions_along_rays(
     return result
 
 
+@partial(jax.jit, static_argnames=["near_distance", "far_distance", "bins_per_ray"])
 def sample_nerf_rendering_positions_along_rays(
     rays: jax.Array,
     near_distance: float,
@@ -149,13 +160,13 @@ def sample_nerf_rendering_positions_along_rays(
     rays = jnp.array(rays)
     result = jnp.zeros(list(rays.shape[:-1]) + [bins_per_ray, 4], dtype=jnp.float32)
     # make coordinates non-homogeneous
-    ray_origins = rays[..., :3] / rays[..., 3]
-    ray_directions = rays[..., 4:7] / rays[..., 7]
+    ray_origins = rays[..., :3] / rays[..., 3:4]
+    ray_directions = rays[..., 4:7] / rays[..., 7:8]
     norm_ray_directions = ray_directions / jnp.expand_dims(
         (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), -1
     )
     bin_width = (far_distance - near_distance) / bins_per_ray
-    positions_shape_per_bin = list(rays.shape[:-1])
+    positions_shape_per_bin = list(rays.shape[:-1]) + [1]
     for bin_i in range(1, bins_per_ray + 1):
         bin_start = near_distance + bin_i * bin_width
         bin_end = near_distance + (bin_i + 1) * bin_width
@@ -167,17 +178,19 @@ def sample_nerf_rendering_positions_along_rays(
             minval=bin_start,
             maxval=bin_end,
         )
-        sampled_positions = ray_origins + norm_ray_directions * jnp.expand_dims(
-            position_on_ray, -1
-        )
+        sampled_positions = ray_origins + norm_ray_directions * position_on_ray
+        assert sampled_positions.shape[-1] == 3
         # make samples homogeneous again
         sampled_positions = jnp.concatenate(
-            [sampled_positions, jnp.ones(sampled_positions.shape)], axis=-1
+            [sampled_positions, jnp.ones((*sampled_positions.shape[:-1], 1))], axis=-1
         )
+        print(sampled_positions.shape)
+        assert sampled_positions.shape[-1] == 4
         result = result.at[..., bin_i - 1, :].set(sampled_positions)
     return result
 
 
+@jax.jit
 def blend_ray_features_with_nerf_paper_method(
     ray_features: jax.Array, bins_per_ray: int
 ) -> jax.Array:
@@ -218,6 +231,7 @@ def blend_ray_features_with_nerf_paper_method(
     return blended_values
 
 
+@jax.jit
 def compute_nerf_positional_encoding(
     points_and_directions: jt.ArrayLike, components: int
 ):

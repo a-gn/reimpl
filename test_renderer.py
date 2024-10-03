@@ -10,7 +10,7 @@ from reimpl_a_gn.threed.rendering import (
     CameraParams,
     compute_nerf_positional_encoding,
     sample_nerf_rendering_positions_along_rays,
-    sample_rays_towards_all_pixels,
+    sample_rays_towards_pixels,
     sample_regular_positions_along_rays,
 )
 
@@ -215,7 +215,11 @@ def test_sample_rays_from_actual_cameras():
         "/Users/arno/projects/3d-reconstruction/nerf/datasets/flower"
     )
     camera_params = data.cameras[0]
-    rays_camera_frame = sample_rays_towards_all_pixels(camera_params, 10, 10)
+    all_x, all_y = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
+    all_pixel_xy = jnp.stack([all_x, all_y], axis=1).reshape((-1, 2))
+    rays_camera_frame = sample_rays_towards_pixels(camera_params, all_pixel_xy)
+    assert len(rays_camera_frame.shape) == 2
+    assert rays_camera_frame.shape[1] == 8
     # we will work with two axes and reshape at the end
     rays_world_frame_flat = jnp.zeros(jnp.array(rays_camera_frame.reshape(-1, 8).shape))
     print(rays_world_frame_flat.shape)
@@ -228,20 +232,6 @@ def test_sample_rays_from_actual_cameras():
     rays_world_frame_flat = rays_world_frame_flat.at[:, 4:8].set(
         (camera_params.camera_to_world @ rays_camera_frame_flat[..., 4:8].T).T
     )
-    # reshape to original dimensions
-    rays_world_frame = rays_world_frame_flat.reshape(rays_camera_frame.shape)
-
-    all_x, all_y = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
-    # all_grid_points = jnp.stack([all_x, all_y], axis=-1).reshape(-1, 2)
-    #
-    # all_grid_points_camera_frame = camera_params.image_points_to_camera(all_grid_points)
-    # all_rays_towards_grid_points = jnp.concatenate(
-    #     [
-    #         jnp.zeros([all_grid_points_camera_frame.shape[0], 3]),
-    #         all_grid_points_camera_frame[:, :3],
-    #     ],
-    #     1,
-    # )
 
     def plot_pixels(ax: plt.Axes, points: jnp.ndarray):  # type: ignore
         ax.scatter(points[:, 0], points[:, 1], points[:, 2])
@@ -264,13 +254,14 @@ def test_sample_rays_from_actual_cameras():
     ax_rays_regular.text(1, 0, 0, "x-axis", "x")  # type: ignore
     ax_rays_regular.text(0, 1, 0, "y-axis", "y")  # type: ignore
     ax_rays_regular.text(0, 0, 1, "z-axis", "z")  # type: ignore
-    flat_positions = regularly_sampled_rays.reshape(-1, 3)
+    flat_positions = regularly_sampled_rays.reshape(-1, 4)
+    flat_positions = flat_positions[:, :3] / flat_positions[:, 3:4]
     ax_rays_regular.scatter(
         flat_positions[:, 0],
         flat_positions[:, 1],
         flat_positions[:, 2],
     )
-    plot_pixels(ax_rays_regular, all_grid_points_camera_frame)
+    plot_pixels(ax_rays_regular, all_pixel_xy)
 
     nerf_sampled_rays = sample_nerf_rendering_positions_along_rays(
         all_rays_towards_grid_points,
@@ -283,13 +274,14 @@ def test_sample_rays_from_actual_cameras():
     ax_rays_nerf.text(1, 0, 0, "x-axis", "x")  # type: ignore
     ax_rays_nerf.text(0, 1, 0, "y-axis", "y")  # type: ignore
     ax_rays_nerf.text(0, 0, 1, "z-axis", "z")  # type: ignore
-    flat_positions = nerf_sampled_rays.reshape(-1, 3)
+    flat_positions = nerf_sampled_rays.reshape(-1, 4)
+    flat_positions = flat_positions[:, :3] / flat_positions[:, 3:4]
     ax_rays_nerf.scatter(
         flat_positions[:, 0],
         flat_positions[:, 1],
         flat_positions[:, 2],
     )
-    plot_pixels(ax_rays_nerf, all_grid_points_camera_frame)
+    plot_pixels(ax_rays_nerf, all_pixel_xy)
 
     plt.show()
 
