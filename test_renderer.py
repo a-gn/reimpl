@@ -222,7 +222,7 @@ def test_sample_rays_from_actual_cameras():
     assert rays_camera_frame.shape[1] == 8
     # we will work with two axes and reshape at the end
     rays_world_frame_flat = jnp.zeros(jnp.array(rays_camera_frame.reshape(-1, 8).shape))
-    print(rays_world_frame_flat.shape)
+    print(f"rays shape: {rays_world_frame_flat.shape}")
     rays_camera_frame_flat = rays_camera_frame.reshape(-1, 8)
     # transform ray origins
     rays_world_frame_flat = rays_world_frame_flat.at[:, :4].set(
@@ -244,7 +244,7 @@ def test_sample_rays_from_actual_cameras():
         camera_params.focal_length * 3,
         7,
     )
-    print(regularly_sampled_rays)
+    print(f"regular positions shape: {regularly_sampled_rays.shape}")
     _, axes = plt.subplots(1, 2, subplot_kw={"projection": "3d"})
     ax_rays_regular, ax_rays_nerf = axes
     ax_rays_regular.scatter([0], [0], [0], color="red")
@@ -270,6 +270,7 @@ def test_sample_rays_from_actual_cameras():
         7,
         jax.random.PRNGKey(0),
     )
+    print(f"nerf/random positions shape: {nerf_sampled_rays.shape}")
     ax_rays_nerf.set_title("rays towards pixels, NeRF (bins) sampling")
     ax_rays_nerf.text(1, 0, 0, "x-axis", "x")  # type: ignore
     ax_rays_nerf.text(0, 1, 0, "y-axis", "y")  # type: ignore
