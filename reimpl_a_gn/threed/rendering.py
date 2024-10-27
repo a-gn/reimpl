@@ -37,7 +37,7 @@ def get_ray_to_image_coordinates(
     return origin_to_pixel
 
 
-@partial(jax.jit, static_argnames=["camera_params"])
+# @partial(jax.jit, static_argnames=["camera_params"])
 def sample_rays_towards_pixels(
     camera_params: CameraParams,
     points: jt.ArrayLike,
@@ -54,6 +54,8 @@ def sample_rays_towards_pixels(
     assert len(points.shape) == 2
     assert points.shape[1] == 2
     ray_coords = jnp.zeros((len(points), 8), dtype=jnp.float32)
+    # all origins are at zero, set their homogeneous weight to 1
+    ray_coords = ray_coords.at[:, 3].set(1)
     for point_index, (x, y) in enumerate(points):
         ray_direction = get_ray_to_image_coordinates(camera_params, x, y)
         ray_coords = ray_coords.at[point_index, 4:8].set(ray_direction)
