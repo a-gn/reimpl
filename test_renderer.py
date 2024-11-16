@@ -1,3 +1,5 @@
+#!/usr/bin/env python3.12
+
 import jax
 import jax.numpy as jnp
 import jax.typing as jt

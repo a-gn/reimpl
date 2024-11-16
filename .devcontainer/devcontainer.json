@@ -1,7 +1,12 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-    "image": "265165126141.dkr.ecr.us-east-1.amazonaws.com/reimpl-dev-containers:latest",
+    "build": {
+        "dockerfile": "./Dockerfile",
+        "context": ".."
+    },
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "workspaceFolder": "/workspace",
     "runArgs": [
         "--gpus=all"
     ],
@@ -10,7 +15,7 @@
             "extensions": [
                 "eamodio.gitlens",
                 "github.copilot",
-                "ms-python.black-formatter",
+                "charliermarsh.ruff",
                 "ms-python.isort",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
@@ -25,8 +30,8 @@
                     120
                 ],
                 "python.defaultInterpreterPath": "/opt/venv/bin/python",
-                "python.formatting.provider": "black",
-                "editor.defaultFormatter": "ms-python.black-formatter",
+                "python.formatting.provider": "charliermarsh.ruff",
+                "editor.defaultFormatter": "charliermarsh.ruff",
                 "python.formatting.blackArgs": [
                     "--line-length",
                     "120"
@@ -46,14 +51,6 @@
         "source=/home,target=/home,type=bind",
         "source=/mnt,target=/mnt,type=bind"
     ],
-    // Features to add to the dev container. More info: https://containers.dev/features.
-    // "features": {},
-    // Use 'forwardPorts' to make a list of ports inside the container available locally.
-    // "forwardPorts": [],
     // Use 'postCreateCommand' to run commands after the container is created.
-    "postCreateCommand": "/workspaces/reimpl/.devcontainer/post-create-commands.sh"
-    // Configure tool-specific properties.
-    // "customizations": {},
-    // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-    // "remoteUser": "root"
+    "postCreateCommand": "/workspace/.devcontainer/post-create-commands.sh"
 }
