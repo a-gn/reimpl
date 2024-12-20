@@ -20,6 +20,8 @@ jaxlib = "^0.4.31"
 matplotlib = "^3.9.2"
 optax = "^0.2.3"
 imageio = "^2.35.1"
+kagglehub = "^0.3.6"
+requests = "^2.32.3"
 
 [[tool.poetry.source]]
 name = "PyPI"
