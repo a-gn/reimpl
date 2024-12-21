@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "3d-reimpl"
+name = "reimpl_a_gn"
 version = "0.1.0"
 description = "Implementations of 3D reconstruction methods."
 authors = ["Arno Gobbin <a-gn-pub@outlook.com>"]
@@ -22,6 +22,7 @@ optax = "^0.2.3"
 imageio = "^2.35.1"
 kagglehub = "^0.3.6"
 requests = "^2.32.3"
+jupyter = "^1.1.1"
 
 [[tool.poetry.source]]
 name = "PyPI"

@@ -233,7 +233,7 @@ def blend_ray_features_with_nerf_paper_method(
     return blended_values
 
 
-@jax.jit
+@partial(jax.jit, static_argnames="components")
 def compute_nerf_positional_encoding(
     points_and_directions: jt.ArrayLike, components: int
 ):
