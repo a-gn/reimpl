@@ -20,6 +20,14 @@ from reimpl_a_gn.threed.rendering import (
 )
 
 
+def get_flower_dataset_path():
+    return (
+        Path(kagglehub.dataset_download("arenagrenade/llff-dataset-full"))
+        / "nerf_llff_data"
+        / "flower"
+    )
+
+
 def plot_pos_encoding():
     # print(compute_nerf_positional_encoding(jnp.array([[2, 3, 4.5, 0.5, 1.0, 0.3]]), 4))
 
@@ -203,9 +211,7 @@ def plot_sampled_rays(world_to_camera, camera_intrinsics):
 
 
 def test_load_data():
-    data = load_synthetic_nerf_dataset(
-        "/Volumes/ESSB/research/datasets/nerfs/synthetic nerf dataset (original paper)/NeRF_Data/nerf_llff_data/flower"
-    )
+    data = load_synthetic_nerf_dataset(get_flower_dataset_path())
     for array_name in ("images", "bds", "poses", "render_poses"):
         print(f"shape of {array_name} array: {getattr(data, array_name).shape}")
     print(f"holdout image index: {data.i_test}")
@@ -216,9 +222,7 @@ def test_load_data():
 
 
 def test_sample_rays_from_actual_cameras():
-    data = load_synthetic_nerf_dataset(
-        "/Users/arno/projects/3d-reconstruction/nerf/datasets/flower"
-    )
+    data = load_synthetic_nerf_dataset(get_flower_dataset_path())
     camera_params = data.cameras[0]
     all_x, all_y = jnp.meshgrid(jnp.arange(-2, 3, 0.7), jnp.arange(-5, 5, 0.5))
     all_pixel_xy = jnp.stack([all_x, all_y], axis=1).reshape((-1, 2))
