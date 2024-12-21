@@ -23,6 +23,3 @@ FROM ubuntu:24.04 AS main
 
     RUN mkdir /workspace
     WORKDIR /workspace
-    COPY pyproject.toml poetry.lock /workspace/
-    RUN poetry install --no-interaction --no-root
-    RUN rm /workspace/*
