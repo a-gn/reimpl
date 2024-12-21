@@ -43,10 +43,6 @@
             }
         }
     },
-    "postStartCommand": [
-        "pre-commit",
-        "install"
-    ],
     "mounts": [
         "source=/home,target=/home,type=bind",
         "source=/mnt,target=/mnt,type=bind"

@@ -292,8 +292,7 @@ def test_sample_rays_from_actual_cameras():
         flat_positions[:, 2],
     )
     plot_pixels(ax_rays_nerf, all_pixel_xy)
-
-    plt.show()
+    plt.savefig("./outputs/sampled_rays_from_actual_camera.png")
 
 
 test_sample_rays_from_actual_cameras()
