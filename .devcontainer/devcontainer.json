@@ -29,16 +29,7 @@
                     120
                 ],
                 "python.defaultInterpreterPath": "/opt/venv/bin/python",
-                "python.formatting.provider": "charliermarsh.ruff",
-                "editor.defaultFormatter": "charliermarsh.ruff",
-                "python.formatting.blackArgs": [
-                    "--line-length",
-                    "120"
-                ],
-                "isort.args": [
-                    "--profile",
-                    "black"
-                ]
+                "python.formatting.provider": "charliermarsh.ruff"
             }
         }
     },

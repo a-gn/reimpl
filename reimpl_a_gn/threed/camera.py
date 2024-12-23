@@ -37,22 +37,37 @@ class CameraParams:
         self.pixel_size_x = (1 / self.camera_to_image[0, 0]) * focal_length
         self.pixel_size_y = (1 / self.camera_to_image[1, 1]) * focal_length
 
-    def image_points_to_camera(self, image_points: jt.ArrayLike) -> jax.Array:
+    def image_to_camera(self, image_points: jt.ArrayLike) -> jax.Array:
         """Compute the direction of a ray from the camera origin to a point in the image.
 
         This is a function because we go through homogeneous coordinates, but the input coordinates are in pixels.
 
         @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
-        @return Point coordinates in the camera coordinate system. Shape: (point_count, 3). Last axis: x, y, z.
+        @return Point coordinates in the camera coordinate system. Shape: (point_count, 4). Last axis: x, y, z, w.
         """
         image_points = jnp.array(image_points)
         image_points_homogeneous = jnp.concatenate(
             [image_points, jnp.ones((image_points.shape[0], 1))], axis=1
         )
         inverse_camera_matrix = self._image_to_camera
-        return (
+        camera_points_inhomogeneous = (
             inverse_camera_matrix @ image_points_homogeneous.transpose()
         ).transpose()
+        camera_points_homogeneous = jnp.concat(
+            [
+                camera_points_inhomogeneous,
+                jnp.ones([camera_points_inhomogeneous.shape[0], 1]),
+            ],
+            axis=-1,
+        )
+        assert len(camera_points_homogeneous.shape) == 2
+        assert camera_points_homogeneous.shape[1] == 4
+        return camera_points_homogeneous
+
+    def image_to_world(self, image_points: jt.ArrayLike) -> jax.Array:
+        camera_points = self.image_to_camera(image_points)
+        world_points = camera_points @ self.camera_to_world.T
+        return world_points
 
 
 def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):

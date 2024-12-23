@@ -106,7 +106,7 @@ def sample_regular_positions_along_rays(
 ) -> jax.Array:
     """Compute regular positions along a set of rays.
 
-    @param rays Ray parameters. Shape: (..., 8). Last axis: x, y, z, w1, dx, dy, dz, w2.
+    @param rays Ray parameters. Shape: (..., 7). Last axis: x, y, z, w, dx, dy, dz.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param pos_per_ray Number of positions to sample along each ray.
@@ -118,7 +118,7 @@ def sample_regular_positions_along_rays(
     result = jnp.zeros(result_shape, dtype=jnp.float32)
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
-    ray_directions = rays[..., 4:7] / rays[..., 7:8]
+    ray_directions = rays[..., 4:7]
     norm_ray_directions = ray_directions / jnp.expand_dims(
         (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), -1
     )
@@ -128,9 +128,6 @@ def sample_regular_positions_along_rays(
     for pos_i in range(1, pos_per_ray + 1):
         sampled_positions = ray_origins + norm_ray_directions * (
             near_distance + pos_i * distance_interval
-        )
-        print(
-            f"nans in sampled positions for bin {pos_i}: {jnp.sum(jnp.isnan(sampled_positions))}"
         )
         assert sampled_positions.shape[-1] == 3
         # make samples homogeneous again
@@ -153,7 +150,7 @@ def sample_nerf_rendering_positions_along_rays(
 ):
     """Split (near, far) into regularly-sized bins, then randomly sample one position per bin uniformly.
 
-    @param rays Ray parameters. Shape: (..., 8). Last axis: x, y, z, dx, dy, dz.
+    @param rays Ray parameters. Shape: (..., 7). Last axis: x, y, z, w, dx, dy, dz.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
@@ -163,7 +160,7 @@ def sample_nerf_rendering_positions_along_rays(
     result = jnp.zeros(list(rays.shape[:-1]) + [bins_per_ray, 4], dtype=jnp.float32)
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
-    ray_directions = rays[..., 4:7] / rays[..., 7:8]
+    ray_directions = rays[..., 4:7]
     norm_ray_directions = ray_directions / jnp.expand_dims(
         (jnp.linalg.norm(ray_directions, axis=-1, ord=2) ** 1 / 2), -1
     )
