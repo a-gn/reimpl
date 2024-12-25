@@ -44,19 +44,18 @@ class CameraParams:
 
         @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
         @return Point coordinates in the camera coordinate system. Shape: (point_count, 4). Last axis: x, y, z, w.
+        w is all-zero since we output directions and not points.
         """
         image_points = jnp.array(image_points)
         image_points_homogeneous = jnp.concatenate(
             [image_points, jnp.ones((image_points.shape[0], 1))], axis=1
         )
-        inverse_camera_matrix = self._image_to_camera
-        camera_points_inhomogeneous = (
-            inverse_camera_matrix @ image_points_homogeneous.transpose()
-        ).transpose()
+        camera_points_inhomogeneous = image_points_homogeneous @ self._image_to_camera.T
         camera_points_homogeneous = jnp.concat(
             [
                 camera_points_inhomogeneous,
-                jnp.ones([camera_points_inhomogeneous.shape[0], 1]),
+                # for a direction vector, homogeneous weight is zero (it's not translated by frame transformations)
+                jnp.zeros([camera_points_inhomogeneous.shape[0], 1]),
             ],
             axis=-1,
         )
