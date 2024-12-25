@@ -1,10 +1,8 @@
 from functools import partial
 
 import jax
-import jax.lax as lax
 import jax.numpy as jnp
 import jax.typing as jt
-import numpy  # some operations aren't supported on jax-metal
 
 from reimpl_a_gn.threed.camera import CameraParams
 
@@ -102,18 +100,19 @@ def sample_random_rays_toward_image(
 
 # @partial(jax.jit, static_argnames=["pos_per_ray"])
 def sample_regular_positions_along_rays(
-    rays: jax.Array, near_distance: float, far_distance: float, pos_per_ray: int
+    rays: jt.ArrayLike, near_distance: float, far_distance: float, pos_per_ray: int
 ) -> jax.Array:
     """Compute regular positions along a set of rays.
 
-    @param rays Ray parameters. Shape: (..., 7). Last axis: x, y, z, w, dx, dy, dz.
+    @param rays Ray origins and directions. Shape: (..., 8). Last axis: x, y, z, w, dx, dy, dz, 0.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param pos_per_ray Number of positions to sample along each ray.
     @return Positions along rays. Shape: (..., pos_per_ray, 4). Last axis: x, y, z, w.
     """
-    assert rays.shape[-1] == 8
     rays = jnp.array(rays)
+    assert rays.shape[-1] == 8
+    assert jnp.all(rays[:, 7] == 0)
     result_shape = jnp.array([*rays.shape[:-1], pos_per_ray, 4], dtype=int)
     result = jnp.zeros(result_shape, dtype=jnp.float32)
     # make coordinates non-homogeneous
@@ -142,7 +141,7 @@ def sample_regular_positions_along_rays(
 
 @partial(jax.jit, static_argnames=["near_distance", "far_distance", "bins_per_ray"])
 def sample_nerf_rendering_positions_along_rays(
-    rays: jax.Array,
+    rays: jt.ArrayLike,
     near_distance: float,
     far_distance: float,
     bins_per_ray: int,
@@ -150,13 +149,15 @@ def sample_nerf_rendering_positions_along_rays(
 ):
     """Split (near, far) into regularly-sized bins, then randomly sample one position per bin uniformly.
 
-    @param rays Ray parameters. Shape: (..., 7). Last axis: x, y, z, w, dx, dy, dz.
+    @param rays Ray origins and directions. Shape: (..., 8). Last axis: x, y, z, w, dx, dy, dz, 0.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
     @return Points sampled uniformly for each bin, for each ray. Shape: (..., bins_per_ray, 4). Last axis: x, y, z, w.
     """
     rays = jnp.array(rays)
+    assert rays.shape[-1] == 8
+    assert jnp.all(rays[:, 7] == 0)
     result = jnp.zeros(list(rays.shape[:-1]) + [bins_per_ray, 4], dtype=jnp.float32)
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
@@ -183,7 +184,6 @@ def sample_nerf_rendering_positions_along_rays(
         sampled_positions = jnp.concatenate(
             [sampled_positions, jnp.ones((*sampled_positions.shape[:-1], 1))], axis=-1
         )
-        print(sampled_positions.shape)
         assert sampled_positions.shape[-1] == 4
         result = result.at[..., bin_i - 1, :].set(sampled_positions)
     return result
