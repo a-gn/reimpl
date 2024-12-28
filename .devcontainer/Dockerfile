@@ -6,6 +6,7 @@ FROM ubuntu:24.04 AS main
     RUN apt-get update && \
         apt-get install -y --no-install-recommends \
             ca-certificates \
+            fish \
             git \
             gnupg2 \
             htop \
@@ -13,6 +14,8 @@ FROM ubuntu:24.04 AS main
             python3 \
             python3-venv \
             tmux
+
+    SHELL ["/usr/bin/fish", "-c"]
 
     RUN python3.12 -m venv /opt/venv
     ENV PATH="/opt/venv/bin:$PATH"

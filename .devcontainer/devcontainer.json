@@ -21,6 +21,15 @@
                 "ms-toolsai.jupyter"
             ],
             "settings": {
+                "terminal.integrated.profiles.linux": {
+                    "fish": {
+                        "path": "fish"
+                    },
+                    "bash": {
+                        "path": "bash"
+                    }
+                },
+                "terminal.integrated.defaultProfile.linux": "fish",
                 "editor.formatOnSave": true,
                 "editor.codeActionsOnSave": {
                     "source.organizeImports": "explicit"

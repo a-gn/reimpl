@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
-import numpy
 
 
 class CameraParams:
@@ -24,14 +23,14 @@ class CameraParams:
             raise ValueError(
                 f"Expected camera matrix to have shape (3, 4), got {self.world_to_camera.shape}"
             )
-        self.camera_to_world = jnp.array(numpy.linalg.inv(self.world_to_camera))
+        self.camera_to_world = jnp.linalg.inv(self.world_to_camera)
 
         self.camera_to_image = jnp.array(intrinsic_matrix)
         if self.camera_to_image.shape != (3, 3):
             raise ValueError(
                 f"Expected camera matrix to have shape (3, 3), got {self.camera_to_image.shape}"
             )
-        self._image_to_camera = jnp.array(numpy.linalg.inv(self.camera_to_image))
+        self._image_to_camera = jnp.linalg.inv(self.camera_to_image)
 
         self.focal_length = focal_length
         self.pixel_size_x = (1 / self.camera_to_image[0, 0]) * focal_length
@@ -72,8 +71,6 @@ class CameraParams:
 def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
     """Create a pinhole camera's extrinsic matrix from its position and direction.
 
-    This converts to numpy then back, because as of writing, Apple Silicon JAX doesn't support jnp.linalg.inv.
-
     @param position Origin of the camera in world coordinates. Shape: (3,). Order: x, y, z.
     @param direction Viewing direction of the camera in world coordinates. Shape: (3,). Order: dx, dy, dz.
     @return Extrinsic matrix, transforms from world coordinates to camera coordinates. Shape: (4, 4).
@@ -91,7 +88,7 @@ def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
         ],
         dtype=float,
     )
-    extrinsic = jnp.array(numpy.linalg.inv(inverse_extrinsic))
+    extrinsic = jnp.linalg.inv(inverse_extrinsic)
     assert extrinsic.shape == (4, 4)
     return extrinsic
 
