@@ -116,7 +116,7 @@ class BTSDensityDecoder(TrainableModule):
         flat_coords_image = flat_coords_image[:, :2] / flat_coords_image[:, 2]
         # interpolate features at the exact positions given
         flat_interpolated_features = jnp.zeros(
-            (flat_coords_world.size // 3, self.feature_depth), dtype=jnp.float32
+            (flat_coords_world.size // 3, self.feature_depth), dtype=float
         )
         for ix, iy in flat_coords_image:
             x_min = jnp.floor(ix)

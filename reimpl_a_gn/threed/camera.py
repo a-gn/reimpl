@@ -10,13 +10,11 @@ class CameraParams:
         self,
         extrinsic_matrix: jt.ArrayLike,
         intrinsic_matrix: jt.ArrayLike,
-        focal_length: float,
     ):
         """Initialize camera parameters.
 
         @param extrinsic_matrix Extrinsic parameters, from world frame to camera frame. Shape: (4, 4).
         @param intrinsic_matrix Intrinsic parameters, from camera frame to image coordinates. Shape: (3, 3).
-        @param focal_length Focal length of the camera.
         """
         self.world_to_camera = jnp.array(extrinsic_matrix)
         if self.world_to_camera.shape != (4, 4):
@@ -32,28 +30,27 @@ class CameraParams:
             )
         self._image_to_camera = jnp.linalg.inv(self.camera_to_image)
 
-        self.focal_length = focal_length
-        self.pixel_size_x = (1 / self.camera_to_image[0, 0]) * focal_length
-        self.pixel_size_y = (1 / self.camera_to_image[1, 1]) * focal_length
-
     def image_to_camera(self, image_points: jt.ArrayLike) -> jax.Array:
-        """Compute the direction of a ray from the camera origin to a point in the image.
+        """Compute the direction of a ray from the camera origin to a point in the image, in the camera frame.
 
         This is a function because we go through homogeneous coordinates, but the input coordinates are in pixels.
 
         @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
-        @return Point coordinates in the camera coordinate system. Shape: (point_count, 4). Last axis: x, y, z, w.
-        w is all-zero since we output directions and not points.
+        @return Unit direction vector in the camera coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
         """
         image_points = jnp.array(image_points)
         image_points_homogeneous = jnp.concatenate(
             [image_points, jnp.ones((image_points.shape[0], 1))], axis=1
         )
         camera_points_inhomogeneous = image_points_homogeneous @ self._image_to_camera.T
+        # normalize to unit vectors
+        camera_points_inhomogeneous = camera_points_inhomogeneous / jnp.linalg.norm(
+            camera_points_inhomogeneous, axis=1, keepdims=True
+        )
+        # add homogeneous weight of zero (direction vectors, not points)
         camera_points_homogeneous = jnp.concat(
             [
                 camera_points_inhomogeneous,
-                # for a direction vector, homogeneous weight is zero (it's not translated by frame transformations)
                 jnp.zeros([camera_points_inhomogeneous.shape[0], 1]),
             ],
             axis=-1,
@@ -63,9 +60,33 @@ class CameraParams:
         return camera_points_homogeneous
 
     def image_to_world(self, image_points: jt.ArrayLike) -> jax.Array:
-        camera_points = self.image_to_camera(image_points)
-        world_points = camera_points @ self.camera_to_world.T
-        return world_points
+        """Compute the direction of a ray from the camera origin to a point in the image, in the world frame.
+
+        This is a function because we go through homogeneous coordinates, but the input coordinates are in pixels.
+
+        @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
+        @return Unit direction vector in the world coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
+        """
+        camera_directions = self.image_to_camera(image_points)
+        world_directions = camera_directions @ self.camera_to_world.T
+        # normalize to unit vectors (homogeneous weight is zero, ignore it)
+        world_directions = world_directions.at[:, :3].set(
+            world_directions[:, :3]
+            / jnp.linalg.norm(world_directions[:, :3], axis=1, keepdims=True)
+        )
+        return world_directions
+
+    @property
+    def fx(self):
+        """Focal length divided by the pixel size in x. Point [0, 0] in the intrinsic matrix."""
+
+        return self.camera_to_image[0, 0]
+
+    @property
+    def fy(self):
+        """Focal length divided by the pixel size in y. Point [1, 1] in the intrinsic matrix."""
+
+        return self.camera_to_image[1, 1]
 
 
 def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):

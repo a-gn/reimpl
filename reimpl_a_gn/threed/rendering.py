@@ -8,36 +8,6 @@ import jax.typing as jt
 from reimpl_a_gn.threed.camera import CameraParams
 
 
-@partial(jax.jit, static_argnames=["camera_params"])
-def get_ray_to_image_coordinates(
-    camera_params: CameraParams, pixel_row: float, pixel_col: float
-) -> jax.Array:
-    """Compute the direction of a ray from the camera origin to a point in the image.
-
-    Assumes that the camera is at the origin and looks along the z-axis.
-
-    @param camera_params Camera parameters.
-    @param pixel_row Row index of the pixel. Can be a float to represent subpixel positions.
-    @param pixel_col Column index of the pixel. Can be a float to represent subpixel positions.
-    @return Unit vector in the direction of the ray from camera origin to a point in the image plane.
-    Shape: (image_height, image_width, 4). Last axis: x, y, z, 0. (This is a direction vector, not a point.)
-    """
-    principal_point_world = jnp.array([0, 0, camera_params.focal_length])
-    origin_to_pixel = jnp.array(
-        [
-            principal_point_world[0] + camera_params.pixel_size_x * pixel_col,
-            principal_point_world[1] + camera_params.pixel_size_y * pixel_row,
-            principal_point_world[2],
-            0,  # direction vector, not point
-        ]
-    )
-    # normalize vector (ignore weight which stays zero)
-    origin_to_pixel = origin_to_pixel.at[:3].set(
-        origin_to_pixel[:3] / jnp.linalg.norm(origin_to_pixel[:3], ord=2)
-    )
-    return origin_to_pixel
-
-
 # @partial(jax.jit, static_argnames=["camera_params"])
 def sample_rays_towards_pixels(
     camera_params: CameraParams,
@@ -48,65 +18,26 @@ def sample_rays_towards_pixels(
     @param camera_params Pinhole camera parameters.
     @param points Pixel coordinates in the camera's image. Coordinates start in the upper-left corner.
     Shape: (point_count, 2) where the second axis is x, y.
-    @return Ray parameters, homogeneous. Shape: (point_count, 6). Third axis: x, y, z, w1, dx, dy, dz, zeroes.
+    @return Ray parameters, homogeneous. Shape: (point_count, 8). Third axis: x, y, z, w1, dx, dy, dz, zeroes.
     The origin of rays is always at the camera center. Since we're in camera frame, the origin is always zero.
+    Dimension 7 is all-zeroes because those are homogeneous direction vectors.
     """
     points = jnp.array(points)
     assert len(points.shape) == 2
     assert points.shape[1] == 2
-    ray_coords = jnp.zeros((len(points), 8), dtype=jnp.float32)
+    ray_coords = jnp.zeros((points.shape[0], 8), dtype=float)
     # all origins are at zero, set their homogeneous weight to 1
     ray_coords = ray_coords.at[:, 3].set(1)
-    for point_index, (x, y) in enumerate(points):
-        ray_direction = get_ray_to_image_coordinates(camera_params, x, y)
-        ray_coords = ray_coords.at[point_index, 4:8].set(ray_direction)
+    # compute directions of rays
+    ray_directions = camera_params.image_to_camera(points)
+    ray_coords = ray_coords.at[:, 4:8].set(ray_directions)
     return ray_coords
-
-
-@partial(jax.jit, static_argnames=["camera_params"])
-def sample_random_rays_toward_image(
-    camera_params: CameraParams,
-    image_height: int,
-    image_width: int,
-    sample_count: int,
-    prng_key: jt.ArrayLike,
-) -> jax.Array:
-    """Sample parameters of rays through a pinhole camera, with random directions.
-
-    Choose random points continuously, uniformly inside the image, and return their direction from the camera.
-
-    @param camera_params Pinhole camera parameters.
-    @param image_height Pixel row count of the image.
-    @param image_width Pixel column count of the image.
-    @param sample_count Number of points to sample.
-    @param prng_key Key for jax.random.
-    @return Ray parameters in camera coordinates. Shape: (sample_count, 8). Second axis: x, y, z, w1, dx, dy, dz, w2.
-    """
-    prng_key = jnp.array(prng_key)
-    positions_in_image = jax.random.uniform(
-        prng_key,
-        (sample_count, 2),
-        jnp.array((0, 0)),
-        jnp.array((image_height, image_width)),
-    )
-    rays = jnp.zeros((sample_count, 8), dtype=float)
-    for sample_id in range(sample_count):
-        rays = rays.at[sample_id].set(
-            get_ray_to_image_coordinates(
-                camera_params,
-                positions_in_image[sample_id, 0].item(),
-                positions_in_image[sample_id, 1].item(),
-            )
-        )
-    return rays
 
 
 def _validate_rays(rays: jt.ArrayLike, ray_count: int) -> jax.Array:
     rays = jnp.array(rays)
-    assert len(rays.shape) == 2
     checkify.check(
-        jnp.all(rays.shape[0] == ray_count),
-        "ray_count is not consistent with the array's first dimension's size",
+        len(rays.shape) == 2, "a ray array must have two dimensions (rays then coordinates)"
     )
     checkify.check(
         jnp.all(rays.shape[0] == ray_count),
@@ -117,12 +48,12 @@ def _validate_rays(rays: jt.ArrayLike, ray_count: int) -> jax.Array:
         "dimension 1 must have size 8: positions then direction vectors in homogeneous coordinates",
     )
     checkify.check(
-        jnp.all(rays[:, 7] == 0),
-        "dimension 7 must be all-zeroes, those are direction vectors",
-    )
-    checkify.check(
         jnp.all(rays[:, 3] != 0),
         "ray origins must have non-zero homogeneous weights, those are 3D points",
+    )
+    checkify.check(
+        jnp.all(rays[:, 7] == 0),
+        "dimension 7 must be all-zeroes, those are direction vectors",
     )
     return rays
 
@@ -146,7 +77,7 @@ def sample_regular_positions_along_rays(
     @return Positions along rays. Shape: (ray_count, pos_per_ray, 4). Last axis: x, y, z, w.
     """
     rays = _validate_rays(rays, ray_count)
-    result = jnp.zeros([ray_count, pos_per_ray, 4], dtype=jnp.float32)
+    result = jnp.zeros([ray_count, pos_per_ray, 4], dtype=float)
     # make coordinates non-homogeneous
     ray_origins = rays[:, :3] / rays[..., 3:4]
     ray_directions = rays[:, 4:7]
@@ -193,7 +124,7 @@ def sample_nerf_rendering_positions_along_rays(
     @return Points sampled uniformly for each bin, for each ray. Shape: (..., bins_per_ray, 4). Last axis: x, y, z, w.
     """
     rays = _validate_rays(rays, ray_count)
-    result = jnp.zeros([ray_count, bins_per_ray, 4], dtype=jnp.float32)
+    result = jnp.zeros([ray_count, bins_per_ray, 4], dtype=float)
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
     ray_directions = rays[..., 4:7]

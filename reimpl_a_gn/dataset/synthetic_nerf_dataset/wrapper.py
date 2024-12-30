@@ -6,6 +6,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy
+
 from reimpl_a_gn.threed.camera import CameraParams
 
 from ._original_code import load_llff_data
@@ -82,13 +83,10 @@ def load_synthetic_nerf_dataset(
         path_zflat=path_zflat,
     )
     camera_to_world_matrices, intrinsic_matrix = _get_camera_parameters(poses, images)
-    focal_length = int(intrinsic_matrix[2, 4])
     camera_params: list[CameraParams] = []
     for camera_to_world in camera_to_world_matrices:
         extrinsic_matrix = jnp.array(numpy.linalg.inv(camera_to_world[:, :4]))
-        camera_params.append(
-            CameraParams(extrinsic_matrix, intrinsic_matrix, focal_length)
-        )
+        camera_params.append(CameraParams(extrinsic_matrix, intrinsic_matrix))
     return SyntheticNeRFData(
         jnp.array(images),
         jnp.array(poses),
