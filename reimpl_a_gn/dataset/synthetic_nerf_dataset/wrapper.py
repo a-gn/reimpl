@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy
 
-from reimpl_a_gn.threed.camera import CameraParams
+from reimpl_a_gn.threed.rendering import CameraParams
 
 from ._original_code import load_llff_data
 
