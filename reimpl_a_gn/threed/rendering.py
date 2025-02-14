@@ -10,7 +10,7 @@ import jax.typing as jt
 def norm_eucl_3d(
     points: jt.ArrayLike, homogeneous: bool = True, keepdims: bool = False
 ):
-    """Compute the Euclidean distance between the origin and 3D points in homogeneous coordinates.
+    """Compute the Euclidean distance between the origin and 3D points.
 
     We always compute the norm over the second dimension (the coordinates).
     In the homogeneous case, we handle both points (non-zero homogeneous weight) and direction vectors (zero weight).
@@ -108,10 +108,17 @@ class CameraParams:
         @return Unit direction vector in the world coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
         """
         camera_directions = self.image_to_camera(image_points)
+        # they're directions, they should have homogeneous weight zero
+        camera_directions = camera_directions.at[:, :3].set(
+            camera_directions[:, :3] / camera_directions[:, 3:4]
+        )
+        camera_directions = camera_directions.at[:, 3].set(0)
         world_directions = camera_directions @ self.camera_to_world.T
         # normalize to unit vectors (homogeneous weight is zero, ignore it)
+        assert jnp.all(world_directions[:, 3] == 0)
         world_directions = world_directions.at[:, :3].set(
-            world_directions[:, :3] / norm_eucl_3d(world_directions, keepdims=True)
+            world_directions[:, :3]
+            / norm_eucl_3d(world_directions, homogeneous=True, keepdims=True)
         )
         return world_directions
 
@@ -265,7 +272,9 @@ def sample_regular_positions_along_rays(
     # make coordinates non-homogeneous
     ray_origins = rays[:, :3] / rays[..., 3:4]
     ray_directions = rays[:, 4:7]
-    norm_ray_directions = ray_directions / norm_eucl_3d(ray_directions, keepdims=True)
+    norm_ray_directions = ray_directions / norm_eucl_3d(
+        ray_directions, homogeneous=False, keepdims=True
+    )
     assert ray_origins.shape[-1] == 3
     assert norm_ray_directions.shape[-1] == 3
     distance_interval = (far_distance - near_distance) / pos_per_ray
@@ -310,7 +319,9 @@ def sample_nerf_rendering_positions_along_rays(
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
     ray_directions = rays[..., 4:7]
-    norm_ray_directions = ray_directions / norm_eucl_3d(ray_directions, keepdims=True)
+    norm_ray_directions = ray_directions / norm_eucl_3d(
+        ray_directions, homogeneous=False, keepdims=True
+    )
     bin_width = (far_distance - near_distance) / bins_per_ray
     positions_shape_per_bin = list(rays.shape[:-1]) + [1]
     for bin_i in range(1, bins_per_ray + 1):
