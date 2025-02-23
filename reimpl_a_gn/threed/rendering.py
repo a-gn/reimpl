@@ -107,14 +107,10 @@ class CameraParams:
         @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
         @return Unit direction vector in the world coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
         """
+        # These are directions, they have homogeneous weight zero.
         camera_directions = self.image_to_camera(image_points)
-        # they're directions, they should have homogeneous weight zero
-        camera_directions = camera_directions.at[:, :3].set(
-            camera_directions[:, :3] / camera_directions[:, 3:4]
-        )
-        camera_directions = camera_directions.at[:, 3].set(0)
         world_directions = camera_directions @ self.camera_to_world.T
-        # normalize to unit vectors (homogeneous weight is zero, ignore it)
+        # Normalize to unit vectors (homogeneous weight is zero, ignore it).
         assert jnp.all(world_directions[:, 3] == 0)
         world_directions = world_directions.at[:, :3].set(
             world_directions[:, :3]
