@@ -1,38 +1,39 @@
-[tool.poetry]
+[project]
 name = "reimpl_a_gn"
 version = "0.1.0"
 description = "Implementations of 3D reconstruction methods."
-authors = ["Arno Gobbin <a-gn-pub@outlook.com>"]
+authors = [
+    {name = "Arno Gobbin", email = "a-gn-pub@outlook.com"},
+]
 readme = "README.md"
+requires-python = ">=3.12"
 
-[tool.poetry.dependencies]
-python = "^3.12"
-numpy = "^2.0.1"
-wheel = "^0.44.0"
-pytest = {version = "^8.3.2", extras = ["dev"]}
-pre-commit = {version = "^3.8.0", extras = ["dev"]}
-flax = "^0.8.5"
-black = {version = "^24.8.0", extras = ["dev"]}
-ruff = {version = "^0.6.0", extras = ["dev"]}
-isort = {version = "^5.13.2", extras = ["dev"]}
-jax = {extras = ["cuda12"], version = "^0.4.38"}
-jaxlib = "^0.4.31"
-matplotlib = "^3.9.2"
-optax = "^0.2.3"
-imageio = "^2.35.1"
-kagglehub = "^0.3.6"
-requests = "^2.32.3"
-jupyter = "^1.1.1"
+dependencies = [
+    "numpy>=2.0.1",
+    "wheel>=0.44.0",
+    "flax>=0.8.5",
+    "jax[cuda12]>=0.4.38",
+    "jaxlib>=0.4.31",
+    "matplotlib>=3.9.2",
+    "optax>=0.2.3",
+    "imageio>=2.35.1",
+    "kagglehub>=0.3.6",
+    "requests>=2.32.3",
+    "jupyter>=1.1.1",
+]
 
-[[tool.poetry.source]]
-name = "PyPI"
-priority = "primary"
+[dependency-groups]
+dev = [
+    "pytest>=8.3.2",
+    "pre-commit>=3.8.0",
+    "black>=24.8.0",
+    "ruff>=0.6.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-# pyproject.toml
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = [

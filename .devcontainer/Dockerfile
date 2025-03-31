@@ -2,27 +2,20 @@ FROM ubuntu:24.04 AS main
 
     ENV DEBIAN_FRONTEND=noninteractive
 
-    # basic tools + Python's runtime deps
     RUN apt-get update && \
         apt-get install -y --no-install-recommends \
             ca-certificates \
+            curl \
             fish \
             git \
-            gnupg2 \
             htop \
             openssh-client \
-            python3 \
-            python3-venv \
             tmux
 
     SHELL ["/usr/bin/fish", "-c"]
 
-    RUN python3.12 -m venv /opt/venv
-    ENV PATH="/opt/venv/bin:$PATH"
-    ENV VIRTUAL_ENV="/opt/venv"
-
-    RUN python -m pip install -U pip && \
-        python -m pip install -U poetry setuptools wheel
+    # install uv
+    RUN bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
 
     RUN mkdir /workspace
     WORKDIR /workspace
