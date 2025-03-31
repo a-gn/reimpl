@@ -1,12 +1,11 @@
 from functools import partial
 
 import jax
-import jax.experimental.checkify as checkify
 import jax.numpy as jnp
 import jax.typing as jt
 
 
-@partial(jax.jit, static_argnames=["homogeneous", "keepdims"])
+# @partial(jax.jit, static_argnames=["homogeneous", "keepdims"])
 def norm_eucl_3d(
     points: jt.ArrayLike, homogeneous: bool = True, keepdims: bool = False
 ):
@@ -29,17 +28,19 @@ def norm_eucl_3d(
     assert len(points.shape) == 2
     if homogeneous:
         assert points.shape[1] == 4
-        hom_weight_axis = 3
+        points_non_homogeneous = jnp.where(
+            points[:, 3:4] == 0,
+            points[:, :3],  # vectors have homogeneous weight zero
+            points[:, :3] / points[:, 3:4],  # divide point coords by weight
+        )
     else:
         assert points.shape[1] == 3
-        hom_weight_axis = 2
-    points_non_homogeneous = jnp.where(
-        points[:, hom_weight_axis : hom_weight_axis + 1] == 0,
-        points[:, :hom_weight_axis],
-        points[:, :hom_weight_axis] / points[:, hom_weight_axis : hom_weight_axis + 1],
-    )
+        points_non_homogeneous = points
     # this is the step that squashes the norm dimension, or not
-    norms = jnp.linalg.norm(points_non_homogeneous, ord=2, keepdims=keepdims) ** 1 / 2
+    norms = (
+        jnp.linalg.norm(points_non_homogeneous, ord=2, axis=1, keepdims=keepdims) ** 1
+        / 2
+    )
     return norms
 
 
@@ -220,32 +221,7 @@ def sample_rays_towards_pixels(
     return ray_coords
 
 
-def _validate_rays(rays: jt.ArrayLike, ray_count: int) -> jax.Array:
-    rays = jnp.array(rays)
-    checkify.check(
-        len(rays.shape) == 2,
-        "a ray array must have two dimensions (rays then coordinates)",
-    )
-    checkify.check(
-        jnp.all(rays.shape[0] == ray_count),
-        "ray_count is not consistent with the array's first dimension's size",
-    )
-    checkify.check(
-        jnp.all(rays.shape[1] == 8),
-        "dimension 1 must have size 8: positions then direction vectors in homogeneous coordinates",
-    )
-    checkify.check(
-        jnp.all(rays[:, 3] != 0),
-        "ray origins must have non-zero homogeneous weights, those are 3D points",
-    )
-    checkify.check(
-        jnp.all(rays[:, 7] == 0),
-        "dimension 7 must be all-zeroes, those are direction vectors",
-    )
-    return rays
-
-
-@partial(jax.jit, static_argnames=["ray_count", "pos_per_ray"])
+# @partial(jax.jit, static_argnames=["ray_count", "pos_per_ray"])
 def sample_regular_positions_along_rays(
     rays: jt.ArrayLike,
     ray_count: int,
@@ -263,7 +239,7 @@ def sample_regular_positions_along_rays(
     @param out_shape Shape of the output array. Last two axes must have size pos_per_ray and 4, respectively.
     @return Positions along rays. Shape: (ray_count, pos_per_ray, 4). Last axis: x, y, z, w.
     """
-    rays = _validate_rays(rays, ray_count)
+    rays = jnp.array(rays)
     result = jnp.zeros([ray_count, pos_per_ray, 4], dtype=float)
     # make coordinates non-homogeneous
     ray_origins = rays[:, :3] / rays[..., 3:4]
@@ -289,10 +265,10 @@ def sample_regular_positions_along_rays(
     return result
 
 
-@partial(
-    jax.jit,
-    static_argnames=["ray_count", "near_distance", "far_distance", "bins_per_ray"],
-)
+# @partial(
+#     jax.jit,
+#     static_argnames=["ray_count", "near_distance", "far_distance", "bins_per_ray"],
+# )
 def sample_nerf_rendering_positions_along_rays(
     rays: jt.ArrayLike,
     ray_count: int,
@@ -310,7 +286,7 @@ def sample_nerf_rendering_positions_along_rays(
     @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
     @return Points sampled uniformly for each bin, for each ray. Shape: (..., bins_per_ray, 4). Last axis: x, y, z, w.
     """
-    rays = _validate_rays(rays, ray_count)
+    rays = jnp.array(rays)
     result = jnp.zeros([ray_count, bins_per_ray, 4], dtype=float)
     # make coordinates non-homogeneous
     ray_origins = rays[..., :3] / rays[..., 3:4]
@@ -342,7 +318,7 @@ def sample_nerf_rendering_positions_along_rays(
     return result
 
 
-@jax.jit
+# @jax.jit
 def blend_ray_features_with_nerf_paper_method(
     ray_features: jax.Array, bins_per_ray: int
 ) -> jax.Array:
@@ -381,7 +357,7 @@ def blend_ray_features_with_nerf_paper_method(
     return blended_values
 
 
-@partial(jax.jit, static_argnames="components")
+# @partial(jax.jit, static_argnames="components")
 def compute_nerf_positional_encoding(
     points_and_directions: jt.ArrayLike, components: int
 ):
