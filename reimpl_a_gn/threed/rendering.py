@@ -37,10 +37,7 @@ def norm_eucl_3d(
         assert points.shape[1] == 3
         points_non_homogeneous = points
     # this is the step that squashes the norm dimension, or not
-    norms = (
-        jnp.linalg.norm(points_non_homogeneous, ord=2, axis=1, keepdims=keepdims) ** 1
-        / 2
-    )
+    norms = jnp.linalg.norm(points_non_homogeneous, ord=2, axis=1, keepdims=keepdims)
     return norms
 
 
