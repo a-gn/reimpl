@@ -124,13 +124,13 @@ class CameraParams:
 
     @property
     def fx(self):
-        """Focal length divided by the pixel size in x. Point [0, 0] in the intrinsic matrix."""
+        """Focal length divided by the pixel size in x. Element [0, 0] in the intrinsic matrix."""
 
         return self.camera_to_image[0, 0]
 
     @property
     def fy(self):
-        """Focal length divided by the pixel size in y. Point [1, 1] in the intrinsic matrix."""
+        """Focal length divided by the pixel size in y. Element [1, 1] in the intrinsic matrix."""
 
         return self.camera_to_image[1, 1]
 
