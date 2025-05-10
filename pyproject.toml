@@ -29,6 +29,7 @@ dev = [
     "pre-commit>=3.8.0",
     "black>=24.8.0",
     "ruff>=0.6.0",
+    "nbstripout>=0.8.1",
 ]
 
 [build-system]
