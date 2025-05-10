@@ -12,7 +12,8 @@ dependencies = [
     "numpy>=2.0.1",
     "wheel>=0.44.0",
     "flax>=0.8.5",
-    "jax[cuda12]>=0.4.38",
+    "jax>=0.4.38",
+    "jax[cuda12]>=0.4.38 ; sys_platform == 'linux'",  # don't install CUDA on macOS
     "jaxlib>=0.4.31",
     "matplotlib>=3.9.2",
     "optax>=0.2.3",
