@@ -1,11 +1,8 @@
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
 
 
-# @partial(jax.jit, static_argnames=["homogeneous", "keepdims"])
 def norm_eucl_3d(
     points: jt.ArrayLike, homogeneous: bool = True, keepdims: bool = False
 ):
@@ -25,16 +22,25 @@ def norm_eucl_3d(
     on the `keepdim` parameter.
     """
     points = jnp.array(points, float)
-    assert len(points.shape) == 2
+    if points.ndim != 2:
+        raise ValueError(
+            f"expected points array to have two dimensions, got shape {points.shape}"
+        )
     if homogeneous:
-        assert points.shape[1] == 4
+        if points.shape[1] != 4:
+            raise ValueError(
+                f"expected points array to have shape (N, 4) because homogeneous=True, got shape {points.shape}"
+            )
         points_non_homogeneous = jnp.where(
             points[:, 3:4] == 0,
             points[:, :3],  # vectors have homogeneous weight zero
             points[:, :3] / points[:, 3:4],  # divide point coords by weight
         )
     else:
-        assert points.shape[1] == 3
+        if points.shape[1] != 3:
+            raise ValueError(
+                f"expected points array to have shape (N, 3) because homogeneous=False, got shape {points.shape}"
+            )
         points_non_homogeneous = points
     # this is the step that squashes the norm dimension, or not
     norms = jnp.linalg.norm(points_non_homogeneous, ord=2, axis=1, keepdims=keepdims)
