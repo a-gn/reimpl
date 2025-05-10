@@ -22,7 +22,11 @@ def plot_cameras(cameras: list[CameraParams], marked_camera: int | None = None):
     ax = fig.add_subplot(1, 1, 1, projection="3d")
 
     for camera_index, camera_params in enumerate(cameras):
-        color = "red" if camera_index == marked_camera else "blue"
+        color = (
+            "red"
+            if marked_camera is not None and camera_index == marked_camera
+            else "blue"
+        )
         # plot the axes
         origin_world = camera_params.camera_to_world @ (jnp.array([0, 0, 0, 1]))
         origin_world_non_homogeneous = make_non_homogeneous(origin_world)
