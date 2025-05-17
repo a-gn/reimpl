@@ -13,13 +13,20 @@ class CoarseMLP(nn.Module):
     @nn.compact
     def __call__(
         self,
-        points: jt.ArrayLike,
+        rays: jt.ArrayLike,
     ):
-        points = jnp.array(points)
+        """Predict features for the given rays.
+
+        @param rays Origins and direction unit vectors for all rays.
+            Shape: `(number_of_rays, 7)`. Last axis: x, y, z, w, dx, dy, dz.
+        @return Predicted features. Shapes: `(number_of_rays, self.out_features)`.
+
+        """
+        rays = jnp.array(rays)
         for out_feat_count in self.mid_features:
-            points = nn.Dense(out_feat_count)(points)
-            points = nn.relu(points)
-        return nn.Dense(self.out_features)(points)
+            rays = nn.Dense(out_feat_count)(rays)
+            rays = nn.relu(rays)
+        return nn.Dense(self.out_features)(rays)
 
 
 class FineMLP(nn.Module):
@@ -31,13 +38,20 @@ class FineMLP(nn.Module):
     @nn.compact
     def __call__(
         self,
-        points: jt.ArrayLike,
+        rays: jt.ArrayLike,
     ):
-        points = jnp.array(points)
+        """Predict features for the given rays.
+
+        @param rays Origins and direction unit vectors for all rays.
+            Shape: `(number_of_rays, 7)`. Last axis: x, y, z, w, dx, dy, dz.
+        @return Predicted features. Shapes: `(number_of_rays, self.out_features)`.
+
+        """
+        rays = jnp.array(rays)
         for out_feat_count in self.mid_features:
-            points = nn.Dense(out_feat_count)(points)
-            points = nn.relu(points)
-        return nn.Dense(self.out_features)(points)
+            rays = nn.Dense(out_feat_count)(rays)
+            rays = nn.relu(rays)
+        return nn.Dense(self.out_features)(rays)
 
 
 class FullNeRF(nn.Module):

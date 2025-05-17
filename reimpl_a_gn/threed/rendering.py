@@ -5,7 +5,7 @@ import jax.typing as jt
 
 def norm_eucl_3d(
     points: jt.ArrayLike, homogeneous: bool = True, keepdims: bool = False
-):
+) -> jax.Array:
     """Compute the Euclidean distance between the origin and 3D points.
 
     We always compute the norm over the second dimension (the coordinates).
@@ -60,19 +60,19 @@ class CameraParams:
         @param extrinsic_matrix Extrinsic parameters, from world frame to camera frame. Shape: (4, 4).
         @param intrinsic_matrix Intrinsic parameters, from camera frame to image coordinates. Shape: (3, 3).
         """
-        self.world_to_camera = jnp.array(extrinsic_matrix)
+        self.world_to_camera: jax.Array = jnp.array(extrinsic_matrix)
         if self.world_to_camera.shape != (4, 4):
             raise ValueError(
                 f"Expected camera matrix to have shape (3, 4), got {self.world_to_camera.shape}"
             )
-        self.camera_to_world = jnp.linalg.inv(self.world_to_camera)
+        self.camera_to_world: jax.Array = jnp.linalg.inv(self.world_to_camera)
 
-        self.camera_to_image = jnp.array(intrinsic_matrix)
+        self.camera_to_image: jax.Array = jnp.array(intrinsic_matrix)
         if self.camera_to_image.shape != (3, 3):
             raise ValueError(
                 f"Expected camera matrix to have shape (3, 3), got {self.camera_to_image.shape}"
             )
-        self._image_to_camera = jnp.linalg.inv(self.camera_to_image)
+        self._image_to_camera: jax.Array = jnp.linalg.inv(self.camera_to_image)
 
     def image_to_camera(self, image_points: jt.ArrayLike) -> jax.Array:
         """Compute the direction of a ray from the camera origin to a point in the image, in the camera frame.
