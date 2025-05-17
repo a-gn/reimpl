@@ -366,19 +366,33 @@ def compute_nerf_positional_encoding(
 ):
     """Compute the NeRF paper's positional encoding of a set of points and associated directions.
 
-    @param points_and_directions Data to encode. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
+    @param points_and_directions Rays to encode. Shape: (..., 7). Last axis: x, y, z, w, dx, dy, dz.
     @return Positional encoding of the points. Shape: (..., 2 * components).
     """
 
     points_and_directions = jnp.array(points_and_directions)
+    if points_and_directions.ndim < 2 or points_and_directions.shape[-1] != 7:
+        raise ValueError(
+            f"expected input shape (..., 7), got shape {points_and_directions.shape}"
+        )
     result = jnp.zeros(
         list(points_and_directions.shape[:-1]) + [6, 2 * components], dtype=float
     )
+    # make origin coordinates inhomogeneous
+    inhomogeneous_origins = points_and_directions[:, :3] / points_and_directions[:, 3:4]
+    inhomogeneous_points_and_directions = jnp.concat(
+        [inhomogeneous_origins, points_and_directions[:, 4:8]], axis=-1
+    )
+    assert inhomogeneous_points_and_directions.shape[-1] == 6
     for power_of_two in range(components):
         result = result.at[..., power_of_two * 2].set(
-            jnp.sin(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
+            jnp.sin(
+                jnp.pow(2, power_of_two) * jnp.pi * inhomogeneous_points_and_directions
+            )
         )
         result = result.at[..., power_of_two * 2 + 1].set(
-            jnp.cos(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
+            jnp.cos(
+                jnp.pow(2, power_of_two) * jnp.pi * inhomogeneous_points_and_directions
+            )
         )
     return result
