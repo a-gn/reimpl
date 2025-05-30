@@ -4,28 +4,46 @@ import jax.typing as jt
 
 
 def norm_eucl_3d(
-    points: jt.ArrayLike, homogeneous: bool = True, keepdims: bool = False
+    points: jt.ArrayLike,
+    homogeneous: bool = True,
+    keepdims: bool = False,
+    add_batch_dimension: bool = False,
 ) -> jax.Array:
     """Compute the Euclidean distance between the origin and 3D points.
 
     We always compute the norm over the second dimension (the coordinates).
     In the homogeneous case, we handle both points (non-zero homogeneous weight) and direction vectors (zero weight).
 
-    @param points 2D array of 3D points or vectors in homogeneous coordinates.
-    Shape: (point_count, 4) or (point_count, 3), depending on the `homogeneous` argument.
+    @param Single or multiple 3D points in an array.
+    Shape: `(point_count, 4)`, `(point_count, 3)`, `(4,)`, or `(3,)`, depending on the other arguments.
     When the homogeneous weight is zero, we assume a direction vector and ignore the weight.
+
     @param homogeneous Whether the points are in homogeneous coordinates or not.
     If True, we expect 4 coordinates. Otherwise, we expect 3.
+
     @param keepdims If True, the output will have the same number of dimensions as the input and the dimension we
     compute the norm over will have size 1. Otherwise, the dimension we compute the norm over will be squished.
+
+    @param add_batch_dimension If True, we expect a single point in a (3,)- or (4,)-sized array. Otherwise, expect
+    a `(point_count, 4)`- or `(point_count, 3)`-sized array of points.
+
     @return The norm for every point or vector in the input. Shape: either (point_count,) or (point_count, 1), depending
     on the `keepdim` parameter.
     """
     points = jnp.array(points, float)
-    if points.ndim != 2:
+    if add_batch_dimension and points.ndim != 1:
+        raise ValueError(
+            f"expected a single point or vector without a batch axis, got shape {points.shape}"
+        )
+    if not add_batch_dimension and points.ndim != 2:
         raise ValueError(
             f"expected points array to have two dimensions, got shape {points.shape}"
         )
+
+    if add_batch_dimension:
+        points = jnp.expand_dims(points, 0)
+        assert points.ndim == 2
+
     if homogeneous:
         if points.shape[1] != 4:
             raise ValueError(
@@ -63,7 +81,7 @@ class CameraParams:
         self.world_to_camera: jax.Array = jnp.array(extrinsic_matrix)
         if self.world_to_camera.shape != (4, 4):
             raise ValueError(
-                f"Expected camera matrix to have shape (3, 4), got {self.world_to_camera.shape}"
+                f"Expected camera matrix to have shape (4, 4), got {self.world_to_camera.shape}"
             )
         self.camera_to_world: jax.Array = jnp.linalg.inv(self.world_to_camera)
 
@@ -135,28 +153,102 @@ class CameraParams:
         return self.camera_to_image[1, 1]
 
 
-def extrinsic_matrix_from_pose(position: jt.ArrayLike, direction: jt.ArrayLike):
+def extrinsic_matrix_from_pose(
+    camera_origin_world: jt.ArrayLike,
+    viewing_direction_world: jt.ArrayLike,
+    up_direction_world: jt.ArrayLike,
+):
     """Create a pinhole camera's extrinsic matrix from its position and direction.
 
-    @param position Origin of the camera in world coordinates. Shape: (3,). Order: x, y, z.
-    @param direction Viewing direction of the camera in world coordinates. Shape: (3,). Order: dx, dy, dz.
+    @param position Origin of the camera in world coordinates. Shape: (4,). Order: x, y, z, w.
+    @param viewing_direction_world Viewing direction of the camera in world coordinates.
+        Shape: (4,). Order: dx, dy, dz, 0.
+    @param up_direction_world y axis's direction in world coordinates. Must be perpendicular to the viewing direction.
+        Shape: (4,). Order: dx, dy, dz, 0.
     @return Extrinsic matrix, transforms from world coordinates to camera coordinates. Shape: (4, 4).
+
     """
-    direction = jnp.array(direction)
-    position = jnp.array(position)
-    position = position / jnp.sqrt(jnp.sum(position**2))
-    # compute the inverse: from camera coordinates to world coordinates
-    inverse_extrinsic = jnp.array(
-        [
-            [direction[0], 0, 0, position[0]],
-            [0, direction[1], 0, position[1]],
-            [0, 0, direction[2], position[2]],
-            [0, 0, 0, 1],
-        ],
-        dtype=float,
+    viewing_direction_world = jnp.array(viewing_direction_world)
+    up_direction_world = jnp.array(up_direction_world)
+    camera_origin_world = jnp.array(camera_origin_world)
+
+    if viewing_direction_world.shape != (4,):
+        raise ValueError(
+            f"expected a 3D vector as the viewing direction, got shape {viewing_direction_world.shape}"
+        )
+    if viewing_direction_world[3] != 0:
+        raise ValueError(
+            f"expected a 3D vector with homogeneous weight zero as the viewing direction"
+            f", got weight {viewing_direction_world[3]}"
+        )
+    if up_direction_world.shape != (4,):
+        raise ValueError(
+            f"expected a 3D vector as the up direction, got shape {up_direction_world.shape}"
+        )
+    if up_direction_world[3] != 0:
+        raise ValueError(
+            f"expected a 3D vector with homogeneous weight zero as the up direction"
+            f", got weight {up_direction_world[3]}"
+        )
+    if camera_origin_world.shape != (4,):
+        raise ValueError(
+            f"expected a 3D point as the camera origin, got shape {camera_origin_world.shape}"
+        )
+    if camera_origin_world[3] == 0:
+        raise ValueError(
+            f"expected a 3D point with non-zero homogeneous weight as the camera origin"
+            f", got weight {camera_origin_world[3]}"
+        )
+
+    # compute inhomogeneous, unit vectors for all axes
+    viewing_direction_world = (
+        viewing_direction_world
+        / norm_eucl_3d(viewing_direction_world, add_batch_dimension=True)
+    )[:3]
+    up_direction_world = (
+        up_direction_world / norm_eucl_3d(up_direction_world, add_batch_dimension=True)
+    )[:3]
+    if 1e-3 < abs((viewing_direction_world @ up_direction_world).item()):
+        raise ValueError(
+            f"viewing direction {viewing_direction_world.tolist()} and up direction {up_direction_world.tolist()} "
+            "do not seem orthogonal (vectors shown here have been normalized to unit vectors)"
+        )
+
+    sideways_direction = jnp.cross(viewing_direction_world, up_direction_world)
+    assert jnp.allclose(
+        norm_eucl_3d(sideways_direction, homogeneous=False, add_batch_dimension=True),
+        1.0,
+    ), (
+        f"sideways direction {sideways_direction.tolist()} does not have Euclidean norm 1.0"
     )
+
+    # compute the inverse: from camera coordinates to world coordinates
+    rotation_block = jnp.stack(
+        [
+            sideways_direction[:3],
+            up_direction_world[:3],
+            viewing_direction_world[:3],
+            jnp.zeros_like(sideways_direction[:3]),
+        ],
+        axis=0,
+    )
+    assert rotation_block.shape == (4, 3)
+    translation_block = jnp.concat(
+        [
+            camera_origin_world[:3] / camera_origin_world[3],
+            jnp.ones_like(camera_origin_world, shape=(1,)),
+        ],
+        axis=0,
+    )
+    translation_block = jnp.expand_dims(translation_block, axis=1)
+    assert translation_block.shape == (4, 1)
+    inverse_extrinsic = jnp.concat([rotation_block, translation_block], axis=1)
+    assert inverse_extrinsic.shape == (4, 4)
+
+    # extrinsic matrix is the inverse
     extrinsic = jnp.linalg.inv(inverse_extrinsic)
     assert extrinsic.shape == (4, 4)
+
     return extrinsic
 
 
@@ -198,7 +290,6 @@ def intrinsic_matrix_from_params(
     )
 
 
-# @partial(jax.jit, static_argnames=["camera_params"])
 def sample_rays_towards_pixels(
     camera_params: CameraParams,
     points: jt.ArrayLike,
@@ -224,7 +315,6 @@ def sample_rays_towards_pixels(
     return ray_coords
 
 
-# @partial(jax.jit, static_argnames=["ray_count", "pos_per_ray"])
 def sample_regular_positions_along_rays(
     rays: jt.ArrayLike,
     ray_count: int,
@@ -268,10 +358,6 @@ def sample_regular_positions_along_rays(
     return result
 
 
-# @partial(
-#     jax.jit,
-#     static_argnames=["ray_count", "near_distance", "far_distance", "bins_per_ray"],
-# )
 def sample_nerf_rendering_positions_along_rays(
     rays: jt.ArrayLike,
     ray_count: int,
@@ -321,10 +407,7 @@ def sample_nerf_rendering_positions_along_rays(
     return result
 
 
-# @jax.jit
-def blend_ray_features_with_nerf_paper_method(
-    ray_features: jax.Array, bins_per_ray: int
-) -> jax.Array:
+def blend_ray_features_with_nerf_paper_method(ray_features: jax.Array) -> jax.Array:
     """Compute one color for each ray, by using the NeRF paper's rendering method.
 
     We split the (near_point, far_point) interval into N regularly-sized bins, then sample one point, $t_i$, uniformly
@@ -360,7 +443,6 @@ def blend_ray_features_with_nerf_paper_method(
     return blended_values
 
 
-# @partial(jax.jit, static_argnames="components")
 def compute_nerf_positional_encoding(
     points_and_directions: jt.ArrayLike, components: int
 ):
