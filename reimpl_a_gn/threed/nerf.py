@@ -77,19 +77,57 @@ class FullNeRF(nn.Module):
             self.prng_key,
         )
 
-    @staticmethod
-    def compute_fine_sampling_distribution(coarse_features: jt.ArrayLike):
-        """Compute the distributions from which to sample points to pass through the fine MLP.
+def compute_fine_sampling_distribution(
+    densities: jt.ArrayLike,
+    sampling_positions: jt.ArrayLike,
+):
+    """Compute the distributions from which to sample points to pass through the fine MLP, for a single ray.
 
-        This is meant to sample from the more computationally expensive MLP using the results of the coarse MLP.
-        See the NeRF paper for details.
+    We compute weights for each sampling position along the ray, adjusting the probability down according to densities.
 
-        @param coarse_features Features predicted by the coarse MLP. Shape: (..., 4). Last axis: red, green, blue,
-        density (sigma).
-        """
-        coarse_features = jnp.array(coarse_features)
-        assert len(coarse_features) >= 2
-        assert coarse_features.shape[-1] == 4
-        flat_coarse_features = coarse_features.reshape(-1, 4)
-        # compute rendering weights (seeing color computation as alpha-rendering, those are the weights)
-        un_normalized_weights = jnp.zeros(())
+    This is meant to sample from the more computationally expensive MLP using the results of the coarse MLP.
+    See the NeRF paper for details.
+
+    @param densities Density values predicted by the coarse MLP. Shape: (num_samples,).
+    @param sampling_positions Positions along the ray at which `densities` were predicted. Same shape as `densities`.
+    Must be strictly increasing.
+    @return A piecewise-uniform probability distribution represented as a `(num_samples + 1,)`-shaped array of
+    probability values. Item with index `n` is the distribution's value in the `n`th interval.
+    """
+    densities = jnp.array(densities)
+    sampling_positions = jnp.array(sampling_positions)
+    if sampling_positions.shape != densities.shape or sampling_positions.ndim != 1:
+        raise ValueError(
+            "densities and sampling positions must have the same shape and exactly one axis each"
+            f", but we got {densities.shape} and {sampling_positions.shape}"
+        )
+    if jnp.any(sampling_positions[1:] < sampling_positions[:-1]).item():
+        raise ValueError(
+            "sampling positions must be strictly increasing, but they aren't"
+        )
+    if jnp.any(densities < 0).item():
+        raise ValueError(
+            f"densities should be positive, but their minimum is {densities.min().item()}"
+        )
+
+    interval_count = len(sampling_positions) - 1
+    unnormalized_pdf_values = jnp.zeros(
+        [interval_count], dtype=float, device=sampling_positions.device
+    )
+    previous_accumulated_weighted_densities = 0
+    # compute all probability density values after the (near_distance, first sampling position) interval
+    for interval_index in range(interval_count):
+        distance_to_next_sample = (
+            sampling_positions[interval_index + 1] - sampling_positions[interval_index]
+        )
+        current_density = densities[interval_index]
+        unnormalized_pdf_values = unnormalized_pdf_values.at[interval_index].set(
+            # term that removes importance from our current position according to previous densities
+            jnp.exp(-previous_accumulated_weighted_densities)
+            # term that adds influence to our current position according to its own density
+            * (1 - jnp.exp(-current_density * distance_to_next_sample))
+        )
+        previous_accumulated_weighted_densities += (
+            current_density * distance_to_next_sample
+        )
+    return unnormalized_pdf_values / unnormalized_pdf_values.sum()
