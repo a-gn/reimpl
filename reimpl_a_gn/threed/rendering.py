@@ -385,11 +385,12 @@ def sample_nerf_rendering_positions_along_rays(
     )
     bin_width = (far_distance - near_distance) / bins_per_ray
     positions_shape_per_bin = list(rays.shape[:-1]) + [1]
+    split_prng_key = jax.random.split(prng_key, bins_per_ray)
     for bin_i in range(1, bins_per_ray + 1):
         bin_start = near_distance + bin_i * bin_width
         bin_end = near_distance + (bin_i + 1) * bin_width
         position_on_ray = jax.random.uniform(
-            prng_key,
+            split_prng_key[bin_i],
             # keep first axes of rays, just remove the last one and replace with 3
             positions_shape_per_bin,
             dtype=float,
