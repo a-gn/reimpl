@@ -77,6 +77,7 @@ class FullNeRF(nn.Module):
             self.prng_key,
         )
 
+
 def compute_fine_sampling_distribution(
     densities: jt.ArrayLike,
     sampling_positions: jt.ArrayLike,
@@ -88,40 +89,42 @@ def compute_fine_sampling_distribution(
     This is meant to sample from the more computationally expensive MLP using the results of the coarse MLP.
     See the NeRF paper for details.
 
-    @param densities Density values predicted by the coarse MLP. Shape: (num_samples,).
+    @param densities Density values predicted by the coarse MLP. Shape: (num_rays, num_samples,).
     @param sampling_positions Positions along the ray at which `densities` were predicted. Same shape as `densities`.
-    Must be strictly increasing.
-    @return A piecewise-uniform probability distribution represented as a `(num_samples + 1,)`-shaped array of
+    Must be strictly increasing along the last axis.
+    @return A piecewise-uniform probability distribution represented as a `(num_rays, num_samples + 1,)`-shaped array of
     probability values. Item with index `n` is the distribution's value in the `n`th interval.
     """
     densities = jnp.array(densities)
     sampling_positions = jnp.array(sampling_positions)
-    if sampling_positions.shape != densities.shape or sampling_positions.ndim != 1:
+    if sampling_positions.shape != densities.shape or sampling_positions.ndim != 2:
         raise ValueError(
-            "densities and sampling positions must have the same shape and exactly one axis each"
+            "densities and sampling positions must have the same shape and exactly two axes each"
             f", but we got {densities.shape} and {sampling_positions.shape}"
         )
-    if jnp.any(sampling_positions[1:] < sampling_positions[:-1]).item():
+    if jnp.any(sampling_positions[:, 1:] < sampling_positions[:, :-1]).item():
         raise ValueError(
-            "sampling positions must be strictly increasing, but they aren't"
+            "sampling positions must be strictly increasing along the last axis, but they aren't"
         )
     if jnp.any(densities < 0).item():
         raise ValueError(
-            f"densities should be positive, but their minimum is {densities.min().item()}"
+            f"densities must be positive or zero, but their minimum is {densities.min().item()}"
         )
 
-    interval_count = len(sampling_positions) - 1
+    num_rays, num_samples = densities.shape
+    num_intervals = num_samples - 1
     unnormalized_pdf_values = jnp.zeros(
-        [interval_count], dtype=float, device=sampling_positions.device
+        [num_rays, num_intervals], dtype=float, device=sampling_positions.device
     )
-    previous_accumulated_weighted_densities = 0
+    previous_accumulated_weighted_densities = jnp.zeros(num_rays, dtype=float)
     # compute all probability density values after the (near_distance, first sampling position) interval
-    for interval_index in range(interval_count):
+    for interval_index in range(num_intervals):
         distance_to_next_sample = (
-            sampling_positions[interval_index + 1] - sampling_positions[interval_index]
+            sampling_positions[:, interval_index + 1]
+            - sampling_positions[:, interval_index]
         )
-        current_density = densities[interval_index]
-        unnormalized_pdf_values = unnormalized_pdf_values.at[interval_index].set(
+        current_density = densities[:, interval_index]
+        unnormalized_pdf_values = unnormalized_pdf_values.at[:, interval_index].set(
             # term that removes importance from our current position according to previous densities
             jnp.exp(-previous_accumulated_weighted_densities)
             # term that adds influence to our current position according to its own density
@@ -130,4 +133,4 @@ def compute_fine_sampling_distribution(
         previous_accumulated_weighted_densities += (
             current_density * distance_to_next_sample
         )
-    return unnormalized_pdf_values / unnormalized_pdf_values.sum()
+    return unnormalized_pdf_values / unnormalized_pdf_values.sum(axis=1)
