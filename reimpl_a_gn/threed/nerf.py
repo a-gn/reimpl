@@ -133,4 +133,4 @@ def compute_fine_sampling_distribution(
         previous_accumulated_weighted_densities += (
             current_density * distance_to_next_sample
         )
-    return unnormalized_pdf_values / unnormalized_pdf_values.sum(axis=1)
+    return unnormalized_pdf_values / unnormalized_pdf_values.sum(axis=1, keepdims=True)
