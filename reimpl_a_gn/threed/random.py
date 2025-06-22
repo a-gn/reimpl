@@ -89,15 +89,61 @@ def piecewise_uniform(
     )
     for distribution_index in range(pdf_values.shape[0]):
         # find where [0,1] positions fall within the cumulative sum of interval probabilities
-        uniform_value_to_interval = jnp.searchsorted(
+        uniform_value_to_interval_index = jnp.searchsorted(
             cumulative_interval_probabilities[distribution_index, :],
             uniformly_sampled_positions[distribution_index, :],
             side="right",  # so we're always one above the interval's lower bound's position
         )
-        # index the final values and store them
-        final_sampled_values = final_sampled_values.at[distribution_index, :].set(
-            intervals[distribution_index, uniform_value_to_interval]
+        assert uniform_value_to_interval_index.shape == (sample_count_per_distribution,)
+        assert jnp.all(
+            (0 <= uniform_value_to_interval_index)
+            & (uniform_value_to_interval_index < intervals.shape[1])
+        ), (
+            "some samples were assigned to out-of-bounds interval indices"
+            f", min is {uniform_value_to_interval_index.min()}"
+            f" and max is {uniform_value_to_interval_index.max()}"
         )
+        uniform_value_to_interval_lower_bound = intervals[
+            distribution_index, uniform_value_to_interval_index
+        ]
+        uniform_value_to_interval_lower_bound.at[
+            uniform_value_to_interval_lower_bound == -1
+        ].set(0)
+        interval_lower_bounds = intervals[
+            distribution_index, uniform_value_to_interval_index
+        ]
+        assert (
+            interval_lower_bounds.shape
+            == uniformly_sampled_positions[distribution_index].shape
+        ), (
+            f"lower bounds array has shape {interval_lower_bounds.shape}"
+            f", sample array has shape {uniformly_sampled_positions[distribution_index].shape}"
+        )
+
+        # put values in the right place in their interval
+        positions_in_0_1_starting_at_interval_lower_bounds = (
+            uniformly_sampled_positions[
+                distribution_index, uniform_value_to_interval_index
+            ]
+            - cumulative_interval_probabilities[
+                distribution_index, uniform_value_to_interval_index
+            ]
+        )
+        positions_within_intervals_in_0_1 = (
+            positions_in_0_1_starting_at_interval_lower_bounds
+            / interval_lengths[distribution_index, uniform_value_to_interval_index]
+        )
+        positions_within_intervals_final_unit = (
+            positions_within_intervals_in_0_1
+            * interval_lengths[distribution_index, uniform_value_to_interval_index]
+        )
+        positions_in_whole_interval = (
+            interval_lower_bounds + positions_within_intervals_final_unit
+        )
+        final_sampled_values = final_sampled_values.at[distribution_index].set(
+            positions_in_whole_interval
+        )
+
     assert final_sampled_values.shape == (
         intervals.shape[0],
         sample_count_per_distribution,
