@@ -274,3 +274,30 @@ class TestPiecewiseUniform:
         # Should have samples strictly inside intervals, not just on boundaries
         assert samples_strictly_inside_first > 0
         assert samples_strictly_inside_second > 0
+
+    def test_value_proportions_for_large_sample_counts(self):
+        key = jax.random.key(7)
+        SAMPLE_COUNT = 10000
+        interval_bounds = jnp.array([[-10.0, -5.0, -3.0, 5.0, 7.5]])
+        pdf_values = jnp.array([[0.4, 0.1, 0.1, 0.4]])
+        samples = piecewise_uniform(
+            key,
+            intervals=interval_bounds,
+            pdf_values=pdf_values,
+            sample_count_per_distribution=SAMPLE_COUNT,  # large sample count
+        )
+
+        # check that proportions of values in each interval are close to the expected ones
+        for interval_index in range(interval_bounds.shape[1] - 1):
+            lower_bound, upper_bound = interval_bounds[
+                0, interval_index : interval_index + 2
+            ].tolist()
+            value_count_inside_interval = jnp.count_nonzero(
+                (lower_bound <= samples[0]) & (samples[0] < upper_bound)
+            ).item()
+            interval_ratio = value_count_inside_interval / SAMPLE_COUNT
+            interval_probability = pdf_values[0, interval_index].item()
+            print(
+                f"interval {interval_index} has size ratio {interval_ratio} and probability {interval_probability}"
+            )
+            assert abs(interval_ratio - interval_probability < 1e-2)
