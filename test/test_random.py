@@ -259,7 +259,6 @@ class TestPiecewiseUniform:
         sample_count = 100
 
         samples = piecewise_uniform(key, intervals, pdf_values, sample_count)
-        print(f"samples: {samples}")
 
         # Check that we don't just get the interval bounds
         unique_samples = jnp.unique(samples)
