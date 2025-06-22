@@ -54,12 +54,14 @@ def piecewise_uniform(
     # compute the probability of each uniform interval in the entire distributions
     interval_probabilities = interval_lengths * pdf_values
     # check that the universe in each distribution has probability 1.0
-    total_sums_of_pdfs = jnp.sum(pdf_values, axis=1)
-    if not jnp.allclose(total_sums_of_pdfs, 1.0):
+    total_sums_of_interval_probabilities = jnp.sum(interval_probabilities, axis=1)
+    if not jnp.allclose(total_sums_of_interval_probabilities, 1.0):
         index_of_farthest_value_from_1 = jnp.argmax(
             jnp.abs(1.0 - jnp.sum(pdf_values, axis=1))
         )
-        farthest_value_from_1 = total_sums_of_pdfs[index_of_farthest_value_from_1]
+        farthest_value_from_1 = total_sums_of_interval_probabilities[
+            index_of_farthest_value_from_1
+        ]
         raise ValueError(
             "the sum of interval probabilities should equal one, but doesn't"
             f": the farthest sum of probabilities in a distribution is {farthest_value_from_1}"
