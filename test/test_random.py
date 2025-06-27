@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from reimpl_a_gn.threed.random import piecewise_uniform
+from reimpl_a_gn.random import piecewise_uniform
 
 
 class TestPiecewiseUniform:
