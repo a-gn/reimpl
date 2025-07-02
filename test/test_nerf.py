@@ -33,7 +33,7 @@ def test_compute_fine_sampling_distribution():
     )
     for interval_index in range(0, sampling_positions.shape[1] - 1):
         expected_distribution = expected_distribution.at[:, interval_index].set(
-            cumulative_transmittance[:, interval_index]
+            jnp.exp(cumulative_transmittance[:, interval_index])
             * (
                 1
                 - jnp.exp(
