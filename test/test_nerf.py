@@ -21,6 +21,7 @@ def test_pass_data_through_fine_mlp():
 
 
 def test_compute_fine_sampling_distribution():
+    """Make sure that the fine sampling distribution doesn't regress to incorrectness."""
     densities = jnp.array([[0.5, 0.7, 4.5, 0.0, 162.8]])
     sampling_positions = jnp.array([[0.0, 0.3, 1.5, 100.3, 102.0]])
     expected_distribution = jnp.zeros(

@@ -2,6 +2,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
+from .rendering import CameraParams
 
 
 class CoarseMLP(nn.Module):
@@ -78,6 +79,36 @@ class FullNeRF(nn.Module):
         )
 
 
+def compute_rays_in_world_frame(
+    camera: CameraParams, x_range: tuple[int, int], y_range: tuple[int, int]
+):
+    """Compute the origin and direction of rays from the camera origin to pixels in the image.
+
+    @return ray directions and origins. Shape: (ray_count, 8). Second axis: (x, y, z, w, dx, dy, dz, 0).
+
+    """
+
+    # compute rays in world frame
+    ray_targets_x_image, ray_targets_y_image = jnp.meshgrid(
+        jnp.arange(*x_range), jnp.arange(*y_range)
+    )
+    ray_targets_image = jnp.stack(
+        [ray_targets_x_image, ray_targets_y_image], axis=-1
+    ).reshape(-1, 2)
+    ray_directions_world = camera.image_to_world(ray_targets_image)
+    # origin of rays is origin of camera
+    ray_origins_world = jnp.array([[0.0, 0.0, 0.0, 1.0]]) @ camera.camera_to_world.T
+    # same origin for all rays, concatenate needs axis 0 to have the same size as directions
+    ray_origins_world = jnp.repeat(
+        ray_origins_world, axis=0, repeats=ray_directions_world.shape[0]
+    )
+    ray_directions_and_origins_world = jnp.concatenate(
+        [ray_origins_world, ray_directions_world], axis=1
+    )
+    return ray_directions_and_origins_world
+
+
+@jax.jit
 def compute_fine_sampling_distribution(
     densities: jt.ArrayLike,
     sampling_positions: jt.ArrayLike,
@@ -97,40 +128,26 @@ def compute_fine_sampling_distribution(
     """
     densities = jnp.array(densities)
     sampling_positions = jnp.array(sampling_positions)
-    if sampling_positions.shape != densities.shape or sampling_positions.ndim != 2:
-        raise ValueError(
-            "densities and sampling positions must have the same shape and exactly two axes each"
-            f", but we got {densities.shape} and {sampling_positions.shape}"
-        )
-    if jnp.any(sampling_positions[:, 1:] < sampling_positions[:, :-1]).item():
-        raise ValueError(
-            "sampling positions must be strictly increasing along the last axis, but they aren't"
-        )
-    if jnp.any(densities < 0).item():
-        raise ValueError(
-            f"densities must be positive or zero, but their minimum is {densities.min().item()}"
-        )
 
-    num_rays, num_samples = densities.shape
-    num_intervals = num_samples - 1
-    unnormalized_pdf_values = jnp.zeros(
-        [num_rays, num_intervals], dtype=float, device=sampling_positions.device
+    result = jnp.zeros((densities.shape[0], densities.shape[1] - 1), dtype=float)
+
+    cumulative_transmittance = jnp.cumulative_sum(
+        -densities[:, :-1] * (sampling_positions[:, 1:] - sampling_positions[:, :-1]),
+        axis=1,
+        include_initial=True,
     )
-    previous_accumulated_weighted_densities = jnp.zeros(num_rays, dtype=float)
-    # compute all probability density values after the (near_distance, first sampling position) interval
-    for interval_index in range(num_intervals):
-        distance_to_next_sample = (
-            sampling_positions[:, interval_index + 1]
-            - sampling_positions[:, interval_index]
+    for interval_index in range(0, sampling_positions.shape[1] - 1):
+        result = result.at[:, interval_index].set(
+            jnp.exp(cumulative_transmittance[:, interval_index])
+            * (
+                1
+                - jnp.exp(
+                    -densities[:, interval_index]
+                    * (
+                        sampling_positions[:, interval_index + 1]
+                        - sampling_positions[:, interval_index]
+                    )
+                )
+            )
         )
-        current_density = densities[:, interval_index]
-        unnormalized_pdf_values = unnormalized_pdf_values.at[:, interval_index].set(
-            # term that removes importance from our current position according to previous densities
-            jnp.exp(-previous_accumulated_weighted_densities)
-            # term that adds influence to our current position according to its own density
-            * (1 - jnp.exp(-current_density * distance_to_next_sample))
-        )
-        previous_accumulated_weighted_densities += (
-            current_density * distance_to_next_sample
-        )
-    return unnormalized_pdf_values / unnormalized_pdf_values.sum(axis=1, keepdims=True)
+    return result
