@@ -2,6 +2,7 @@
 
 from functools import partial
 
+import jax.lax as lax
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
@@ -50,11 +51,10 @@ def piecewise_uniform(
     cumulative_interval_probabilities = jnp.cumulative_sum(
         interval_probabilities, axis=1, include_initial=True
     )
-    final_sampled_values = jnp.zeros_like(
-        intervals, shape=(intervals.shape[0], sample_count_per_distribution)
-    )
-    # for each distribution, assign [0, 1] values to their interval, then convert them to the final unit
-    for distribution_index in range(pdf_values.shape[0]):
+
+    def _auxiliary_per_distribution_computation(
+        distribution_index: int, previous_results: jnp.ndarray
+    ):
         # find where [0,1] positions fall within the cumulative sum of interval probabilities
         assigned_interval_lower_bound_indices = (
             jnp.searchsorted(
@@ -94,8 +94,18 @@ def piecewise_uniform(
             ]
         ) + intervals[distribution_index, assigned_interval_lower_bound_indices]
 
-        final_sampled_values = final_sampled_values.at[distribution_index].set(
+        return previous_results.at[distribution_index].set(
             final_values_for_this_distribution
         )
+
+    # for each distribution, assign [0, 1] values to their interval, then convert them to the final unit
+    final_sampled_values = lax.fori_loop(
+        0,
+        pdf_values.shape[0],
+        _auxiliary_per_distribution_computation,
+        jnp.zeros_like(
+            intervals, shape=(intervals.shape[0], sample_count_per_distribution)
+        ),
+    )
 
     return final_sampled_values
