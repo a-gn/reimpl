@@ -1,5 +1,6 @@
 from functools import partial
 
+import jax.lax as lax
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
@@ -198,7 +199,6 @@ def sample_regular_positions_along_rays(
     return result
 
 
-@partial(jax.jit, static_argnames=["bins_per_ray"])
 def sample_coarse_mlp_inputs(
     rays: jt.ArrayLike,
     near_distance: float,
@@ -213,36 +213,45 @@ def sample_coarse_mlp_inputs(
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
-    @return Points sampled uniformly for each bin, for each ray. Shape: (ray_count, bins_per_ray, 4).
-        Last axis: x, y, z, w.
+    @return Points and direction vectors for each bin, for each ray. Shape: (ray_count, bins_per_ray, 8).
+        Last axis: x, y, z, w, dx, dy, dz, 0.
     """
     rays = jnp.array(rays)
-    result = jnp.zeros([rays.shape[1], bins_per_ray, 4], dtype=float)
-    # make coordinates non-homogeneous
-    ray_origins = rays[:, :3] / rays[..., 3:4]
-    ray_directions = rays[:, 4:7]
+    ray_origins = rays[:, :4]
+    ray_directions = rays[:, 4:8]
     norm_ray_directions = ray_directions / norm_eucl_3d(
-        ray_directions, homogeneous=False, keepdims=True
+        ray_directions, homogeneous=True, keepdims=True
     )
-    bin_width = (far_distance - near_distance) / bins_per_ray
-    split_prng_key = jax.random.split(prng_key, bins_per_ray)
-    for bin_i in range(1, bins_per_ray + 1):
-        bin_start = near_distance + bin_i * bin_width
-        bin_end = near_distance + (bin_i + 1) * bin_width
-        positions_on_rays = jax.random.uniform(
-            split_prng_key[bin_i],
-            (rays.shape[0], 1),
-            dtype=float,
-            minval=bin_start,
-            maxval=bin_end,
-        )
-        sampled_positions = ray_origins + norm_ray_directions * positions_on_rays
-        # make samples homogeneous again
-        sampled_positions = jnp.concatenate(
-            [sampled_positions, jnp.ones((*sampled_positions.shape[:-1], 1))], axis=-1
-        )
-        result = result.at[:, bin_i - 1, :].set(sampled_positions)
-    return result
+
+    # sample points on rays
+    bin_boundaries = jnp.reshape(
+        # N bins means N + 1 bounds
+        jnp.linspace(near_distance, far_distance, bins_per_ray + 1),
+        (1, bins_per_ray + 1, 1),
+    )  # shape: (ray_count, bins_per_ray, 1)
+    sampled_distances_along_rays = jax.random.uniform(
+        prng_key,
+        (rays.shape[0], bins_per_ray, 1),  # with coordinate axis
+        minval=bin_boundaries[:, :-1],
+        maxval=bin_boundaries[:, 1:],
+    )
+    sampled_positions = (
+        jnp.expand_dims(ray_origins, 1)  # shape: (ray_count, 1, 4)
+        + jnp.expand_dims(norm_ray_directions, 1)  # shape: (ray_count, 1, 4)
+        * sampled_distances_along_rays
+    )
+
+    # add direction vectors to the result
+    sampled_points_and_directions = jnp.concat(
+        [
+            sampled_positions,
+            jnp.repeat(
+                ray_directions.reshape(rays.shape[0], 1, 4), bins_per_ray, axis=1
+            ),
+        ]
+    )
+
+    return sampled_points_and_directions
 
 
 def blend_ray_features_with_nerf_paper_method(ray_features: jax.Array) -> jax.Array:

@@ -3,7 +3,10 @@ import jax.numpy as jnp
 import pytest
 
 import reimpl_a_gn.threed.rendering as rendering
-from reimpl_a_gn.threed.nerf import compute_rays_in_world_frame
+from reimpl_a_gn.threed.nerf import (
+    compute_rays_in_world_frame,
+    sample_coarse_mlp_inputs,
+)
 
 
 @pytest.fixture
@@ -27,8 +30,8 @@ def first_flower_camera() -> rendering.CameraParams:
 
 
 @pytest.fixture
-def flower_rays(test_camera: rendering.CameraParams) -> jnp.ndarray:
-    return compute_rays_in_world_frame(test_camera, (-3, 4), (-2, 2))
+def flower_rays(first_flower_camera: rendering.CameraParams) -> jnp.ndarray:
+    return compute_rays_in_world_frame(first_flower_camera, (-3, 4), (-2, 2))
 
 
 def test_extrinsic_camera_from_valid_camera_params():
@@ -56,7 +59,7 @@ def test_extrinsic_camera_with_non_orthogonal_directions():
 
 def test_sample_coarse_positions(flower_rays: jnp.ndarray):
     prng_key = jax.random.key(7)
-    actual_result = rendering.sample_coarse_mlp_inputs(
+    actual_result = sample_coarse_mlp_inputs(
         rays=flower_rays,
         near_distance=0.5,
         far_distance=5.0,
