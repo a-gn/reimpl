@@ -1,6 +1,3 @@
-from functools import partial
-
-import jax.lax as lax
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
