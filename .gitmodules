@@ -4,3 +4,6 @@
 [submodule "external/nerf"]
 	path = external/nerf
 	url = git@github.com:bmild/nerf.git
+[submodule "external/nerf-pytorch"]
+	path = external/nerf-pytorch
+	url = git@github.com:yenchenlin/nerf-pytorch.git
