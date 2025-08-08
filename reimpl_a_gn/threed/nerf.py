@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 import jax.typing as jt
 
-from .rendering import CameraParams, norm_eucl_3d
+from .rendering import CameraParams, from_homogeneous, norm_eucl_3d
 
 
 class CoarseMLP(nn.Module):
@@ -20,7 +20,7 @@ class CoarseMLP(nn.Module):
         """Predict features for the given rays.
 
         @param rays Origins and direction unit vectors for all rays.
-            Shape: `(number_of_rays, 7)`. Last axis: x, y, z, w, dx, dy, dz.
+            Shape: `(number_of_rays, 6)`. Last axis: x, y, z, dx, dy, dz.
         @return Predicted features. Shapes: `(number_of_rays, self.out_features)`.
 
         """
@@ -45,7 +45,7 @@ class FineMLP(nn.Module):
         """Predict features for the given rays.
 
         @param rays Origins and direction unit vectors for all rays.
-            Shape: `(number_of_rays, 7)`. Last axis: x, y, z, w, dx, dy, dz.
+            Shape: `(number_of_rays, 6)`. Last axis: x, y, z, dx, dy, dz.
         @return Predicted features. Shapes: `(number_of_rays, self.out_features)`.
 
         """
@@ -85,7 +85,7 @@ def compute_rays_in_world_frame(
 ):
     """Compute the origin and direction of rays from the camera origin to pixels in the image.
 
-    @return ray directions and origins. Shape: (ray_count, 8). Second axis: (x, y, z, w, dx, dy, dz, 0).
+    @return ray directions and origins. Shape: (ray_count, 6). Second axis: (x, y, z, dx, dy, dz).
 
     """
 
@@ -96,13 +96,20 @@ def compute_rays_in_world_frame(
     ray_targets_image = jnp.stack(
         [ray_targets_x_image, ray_targets_y_image], axis=-1
     ).reshape(-1, 2)
-    ray_directions_world = camera.image_to_world(ray_targets_image)
+    ray_directions_world_homo = camera.image_to_world(ray_targets_image)
     # origin of rays is origin of camera
-    ray_origins_world = jnp.array([[0.0, 0.0, 0.0, 1.0]]) @ camera.camera_to_world.T
-    # same origin for all rays, concatenate needs axis 0 to have the same size as directions
-    ray_origins_world = jnp.repeat(
-        ray_origins_world, axis=0, repeats=ray_directions_world.shape[0]
+    ray_origins_world_homo = (
+        jnp.array([[0.0, 0.0, 0.0, 1.0]]) @ camera.camera_to_world.T
     )
+    # same origin for all rays, concatenate needs axis 0 to have the same size as directions
+    ray_origins_world_homo = jnp.repeat(
+        ray_origins_world_homo, axis=0, repeats=ray_directions_world_homo.shape[0]
+    )
+
+    # Convert to inhomogeneous coordinates
+    ray_origins_world = from_homogeneous(ray_origins_world_homo)
+    ray_directions_world = from_homogeneous(ray_directions_world_homo)
+
     ray_directions_and_origins_world = jnp.concatenate(
         [ray_origins_world, ray_directions_world], axis=1
     )
@@ -153,6 +160,7 @@ def compute_fine_sampling_distribution(
         )
     return result
 
+
 def sample_regular_positions_along_rays(
     rays: jt.ArrayLike,
     ray_count: int,
@@ -162,19 +170,17 @@ def sample_regular_positions_along_rays(
 ) -> jax.Array:
     """Compute regular positions along a set of rays.
 
-    @param rays Ray origins and directions. Shape: (ray_count, 8). Last axis: x, y, z, w, dx, dy, dz, 0.
+    @param rays Ray origins and directions. Shape: (ray_count, 6). Last axis: x, y, z, dx, dy, dz.
     @param ray_count Number of rays in the input. Must be equal to the size of rays' first dimension.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param pos_per_ray Number of positions to sample along each ray.
-    @param out_shape Shape of the output array. Last two axes must have size pos_per_ray and 4, respectively.
-    @return Positions along rays. Shape: (ray_count, pos_per_ray, 4). Last axis: x, y, z, w.
+    @return Positions along rays. Shape: (ray_count, pos_per_ray, 3). Last axis: x, y, z.
     """
     rays = jnp.array(rays)
-    result = jnp.zeros([ray_count, pos_per_ray, 4], dtype=float)
-    # make coordinates non-homogeneous
-    ray_origins = rays[:, :3] / rays[..., 3:4]
-    ray_directions = rays[:, 4:7]
+    result = jnp.zeros([ray_count, pos_per_ray, 3], dtype=float)
+    ray_origins = rays[:, :3]
+    ray_directions = rays[:, 3:6]
     norm_ray_directions = ray_directions / norm_eucl_3d(
         ray_directions, homogeneous=False, keepdims=True
     )
@@ -186,12 +192,6 @@ def sample_regular_positions_along_rays(
             near_distance + (position_index + 1) * distance_interval
         )
         assert sampled_positions.shape == (ray_count, 3)
-        # make samples homogeneous again
-        sampled_positions = jnp.concatenate(
-            [sampled_positions, jnp.ones(tuple(sampled_positions.shape[:-1]) + (1,))],
-            axis=-1,
-        )
-        assert sampled_positions.shape[-1] == 4
         result = result.at[:, position_index, :].set(sampled_positions)
     return result
 
@@ -205,19 +205,18 @@ def sample_coarse_mlp_inputs(
 ):
     """Split (near, far) into regularly-sized bins, then randomly sample one position per bin uniformly.
 
-    @param rays Ray origins and directions. Shape: (ray_count, 8). Last axis: x, y, z, w, dx, dy, dz, 0.
-    @param ray_count Number of rays in the input. Must be equal to the size of rays' first dimension.
+    @param rays Ray origins and directions. Shape: (ray_count, 6). Last axis: x, y, z, dx, dy, dz.
     @param near_distance Smallest distance from origin to sample at.
     @param far_distance Largest distance from origin to sample at.
     @param bins_per_ray Number of bins to split (near_distance, far_distance) into.
-    @return Points and direction vectors for each bin, for each ray. Shape: (ray_count, bins_per_ray, 8).
-        Last axis: x, y, z, w, dx, dy, dz, 0.
+    @return Points and direction vectors for each bin, for each ray. Shape: (ray_count, bins_per_ray, 6).
+        Last axis: x, y, z, dx, dy, dz.
     """
     rays = jnp.array(rays)
-    ray_origins = rays[:, :4]
-    ray_directions = rays[:, 4:8]
+    ray_origins = rays[:, :3]
+    ray_directions = rays[:, 3:6]
     norm_ray_directions = ray_directions / norm_eucl_3d(
-        ray_directions, homogeneous=True, keepdims=True
+        ray_directions, homogeneous=False, keepdims=True
     )
 
     # sample points on rays
@@ -225,7 +224,7 @@ def sample_coarse_mlp_inputs(
         # N bins means N + 1 bounds
         jnp.linspace(near_distance, far_distance, bins_per_ray + 1),
         (1, bins_per_ray + 1, 1),
-    )  # shape: (ray_count, bins_per_ray, 1)
+    )  # shape: (1, bins_per_ray + 1, 1)
     sampled_distances_along_rays = jax.random.uniform(
         prng_key,
         (rays.shape[0], bins_per_ray, 1),  # with coordinate axis
@@ -233,19 +232,20 @@ def sample_coarse_mlp_inputs(
         maxval=bin_boundaries[:, 1:],
     )
     sampled_positions = (
-        jnp.expand_dims(ray_origins, 1)  # shape: (ray_count, 1, 4)
-        + jnp.expand_dims(norm_ray_directions, 1)  # shape: (ray_count, 1, 4)
+        jnp.expand_dims(ray_origins, 1)  # shape: (ray_count, 1, 3)
+        + jnp.expand_dims(norm_ray_directions, 1)  # shape: (ray_count, 1, 3)
         * sampled_distances_along_rays
     )
 
     # add direction vectors to the result
-    sampled_points_and_directions = jnp.concat(
+    sampled_points_and_directions = jnp.concatenate(
         [
             sampled_positions,
             jnp.repeat(
-                ray_directions.reshape(rays.shape[0], 1, 4), bins_per_ray, axis=1
+                ray_directions.reshape(rays.shape[0], 1, 3), bins_per_ray, axis=1
             ),
-        ]
+        ],
+        axis=-1,
     )
 
     return sampled_points_and_directions
@@ -274,8 +274,8 @@ def blend_ray_features_with_nerf_paper_method(ray_features: jax.Array) -> jax.Ar
         (ray_features[..., 1::, :3] - ray_features[..., ::-1, :3]) / 2
     )
     # compute distances between origin and interval centers and samples
-    origin_center_distances = norm_eucl_3d(interval_centers)
-    origin_sample_distances = norm_eucl_3d(ray_features[..., :, :3])
+    origin_center_distances = norm_eucl_3d(interval_centers, homogeneous=False)
+    origin_sample_distances = norm_eucl_3d(ray_features[..., :, :3], homogeneous=False)
     # interpolate values at midpoints between samples
     center_values = jnp.interp(
         origin_center_distances, origin_sample_distances, ray_features[..., :, 3:]
@@ -292,41 +292,25 @@ def compute_nerf_positional_encoding(
 ):
     """Compute the NeRF paper's positional encoding of a set of points and associated directions.
 
-    @param points_and_directions Rays to encode. Shape: (..., 8). Last axis: x, y, z, w, dx, dy, dz, 0.
-    @return Positional encoding of the points. Shape: (..., 2 * components).
+    @param points_and_directions Rays to encode. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
+    @return Positional encoding of the points. Shape: (..., 6, 2 * components).
     """
 
     points_and_directions = jnp.array(points_and_directions)
-    if points_and_directions.ndim < 2 or points_and_directions.shape[-1] != 8:
+    if points_and_directions.ndim < 2 or points_and_directions.shape[-1] != 6:
         raise ValueError(
-            f"expected input shape (..., 8), got shape {points_and_directions.shape}"
+            f"expected input shape (..., 6), got shape {points_and_directions.shape}"
         )
-    if jnp.any(points_and_directions[..., 7] != 0.0):
-        raise ValueError(
-            "expected directions to be vectors, but some have non-zero homogeneous weights"
-        )
+
     result = jnp.zeros(
         list(points_and_directions.shape[:-1]) + [6, 2 * components], dtype=float
     )
-    inhomogeneous_points_and_directions = jnp.concat(
-        [
-            # make origin coordinates inhomogeneous
-            points_and_directions[:, :3] / points_and_directions[:, 3:4],
-            # direction vectors have zero homogeneous weight
-            points_and_directions[:, 4:7],
-        ],
-        axis=-1,
-    )
-    assert inhomogeneous_points_and_directions.shape[-1] == 6
+
     for power_of_two in range(components):
         result = result.at[..., power_of_two * 2].set(
-            jnp.sin(
-                jnp.pow(2, power_of_two) * jnp.pi * inhomogeneous_points_and_directions
-            )
+            jnp.sin(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
         )
         result = result.at[..., power_of_two * 2 + 1].set(
-            jnp.cos(
-                jnp.pow(2, power_of_two) * jnp.pi * inhomogeneous_points_and_directions
-            )
+            jnp.cos(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
         )
     return result

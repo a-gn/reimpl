@@ -3,6 +3,45 @@ import jax.numpy as jnp
 import jax.typing as jt
 
 
+def to_homogeneous_points(points: jt.ArrayLike) -> jax.Array:
+    """Convert 3D points to homogeneous coordinates.
+    
+    @param points Shape: (..., 3). Last axis: x, y, z.
+    @return Homogeneous points. Shape: (..., 4). Last axis: x, y, z, w=1.
+    """
+    points = jnp.array(points)
+    ones = jnp.ones(points.shape[:-1] + (1,))
+    return jnp.concatenate([points, ones], axis=-1)
+
+
+def to_homogeneous_vectors(vectors: jt.ArrayLike) -> jax.Array:
+    """Convert 3D vectors to homogeneous coordinates.
+    
+    @param vectors Shape: (..., 3). Last axis: dx, dy, dz.
+    @return Homogeneous vectors. Shape: (..., 4). Last axis: dx, dy, dz, w=0.
+    """
+    vectors = jnp.array(vectors)
+    zeros = jnp.zeros(vectors.shape[:-1] + (1,))
+    return jnp.concatenate([vectors, zeros], axis=-1)
+
+
+def from_homogeneous(coords: jt.ArrayLike) -> jax.Array:
+    """Convert homogeneous coordinates back to 3D.
+    
+    @param coords Shape: (..., 4). Last axis: x, y, z, w.
+    @return 3D coordinates. Shape: (..., 3). For points, divides by w. For vectors (w=0), keeps xyz.
+    """
+    coords = jnp.array(coords)
+    is_vector = coords[..., 3] == 0
+    # For vectors (w=0), just take xyz. For points, divide by w.
+    result = jnp.where(
+        jnp.expand_dims(is_vector, -1),
+        coords[..., :3],  # vectors: keep xyz as-is
+        coords[..., :3] / jnp.expand_dims(coords[..., 3], -1)  # points: divide by w
+    )
+    return result
+
+
 def norm_eucl_3d(
     points: jt.ArrayLike,
     homogeneous: bool = True,
@@ -299,18 +338,17 @@ def sample_rays_towards_pixels(
     @param camera_params Pinhole camera parameters.
     @param points Pixel coordinates in the camera's image. Coordinates start in the upper-left corner.
     Shape: (point_count, 2) where the second axis is x, y.
-    @return Ray parameters, homogeneous. Shape: (point_count, 8). Third axis: x, y, z, w1, dx, dy, dz, zeroes.
-    The origin of rays is always at the camera center. Since we're in camera frame, the origin is always zero.
-    Dimension 7 is all-zeroes because those are homogeneous direction vectors.
+    @return Ray parameters, inhomogeneous. Shape: (point_count, 6). Third axis: x, y, z, dx, dy, dz.
+    The origin of rays is always at the camera center (0, 0, 0) in camera coordinates.
     """
     points = jnp.array(points)
     assert len(points.shape) == 2
     assert points.shape[1] == 2
-    ray_coords = jnp.zeros((points.shape[0], 8), dtype=float)
-    # all origins are at zero, set their homogeneous weight to 1
-    ray_coords = ray_coords.at[:, 3].set(1)
-    # compute directions of rays
-    ray_directions = camera_params.image_to_camera(points)
-    ray_coords = ray_coords.at[:, 4:8].set(ray_directions)
+    ray_coords = jnp.zeros((points.shape[0], 6), dtype=float)
+    # origins are at zero (already set)
+    # compute directions of rays (convert from homogeneous to inhomogeneous)
+    ray_directions_homo = camera_params.image_to_camera(points)
+    ray_directions = from_homogeneous(ray_directions_homo)
+    ray_coords = ray_coords.at[:, 3:6].set(ray_directions)
     return ray_coords
 

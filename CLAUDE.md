@@ -1,0 +1,1 @@
+This is focused on NeRF implementation and other 3D modeling and rendering techniques. The `external` folder is third-party code that you must not edit.

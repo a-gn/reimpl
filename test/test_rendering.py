@@ -66,3 +66,5 @@ def test_sample_coarse_positions(flower_rays: jnp.ndarray):
         bins_per_ray=3,
         prng_key=prng_key,
     )
+    # Verify the output shape is correct (should be 6D now instead of 8D)
+    assert actual_result.shape[-1] == 6
