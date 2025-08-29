@@ -269,9 +269,9 @@ def blend_ray_features_with_nerf_paper_method(ray_features: jax.Array) -> jax.Ar
     """
     ray_features = jnp.array(ray_features)
     # compute length and center of intervals between samples
-    interval_lengths = ray_features[..., 1::, :3] - ray_features[..., ::-1, :3]
-    interval_centers = ray_features[..., ::-1, :3] + (
-        (ray_features[..., 1::, :3] - ray_features[..., ::-1, :3]) / 2
+    interval_lengths = ray_features[..., 1:, :3] - ray_features[..., :-1, :3]
+    interval_centers = ray_features[..., :-1, :3] + (
+        (ray_features[..., 1:, :3] - ray_features[..., :-1, :3]) / 2
     )
     # compute distances between origin and interval centers and samples
     origin_center_distances = norm_eucl_3d(interval_centers, homogeneous=False)
