@@ -1,4 +1,4 @@
-import flax.linen as nn
+import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
 import jax.typing as jt
@@ -6,13 +6,25 @@ import jax.typing as jt
 from .rendering import CameraParams, from_homogeneous, norm_eucl_3d
 
 
-class CoarseMLP(nn.Module):
+class CoarseMLP(nnx.Module):
     """The coarse network that lets us choose interesting sampling positions in a NeRF."""
 
-    mid_features: tuple[int, ...]
-    out_features: int
+    def __init__(
+        self,
+        input_features: int,
+        mid_features: tuple[int, ...],
+        out_features: int,
+        rngs: nnx.Rngs,
+    ) -> None:
+        input_size_per_layer = (input_features,) + mid_features
+        output_size_per_layer = mid_features + (out_features,)
+        self.linear_layers = [
+            nnx.Linear(single_input_size, single_output_size, rngs=rngs)
+            for single_input_size, single_output_size in zip(
+                input_size_per_layer, output_size_per_layer
+            )
+        ]
 
-    @nn.compact
     def __call__(
         self,
         rays: jt.ArrayLike,
@@ -24,20 +36,31 @@ class CoarseMLP(nn.Module):
         @return Predicted features. Shapes: `(number_of_rays, self.out_features)`.
 
         """
-        rays = jnp.array(rays)
-        for out_feat_count in self.mid_features:
-            rays = nn.Dense(out_feat_count)(rays)
-            rays = nn.relu(rays)
-        return nn.Dense(self.out_features)(rays)
+        x = jnp.array(rays)
+        for layer in self.linear_layers:
+            x = nnx.relu(layer(x))
+        return x
 
 
-class FineMLP(nn.Module):
+class FineMLP(nnx.Module):
     """The fine network that gives us more precise details in a NeRF."""
 
-    mid_features: tuple[int, ...]
-    out_features: int
+    def __init__(
+        self,
+        input_features: int,
+        mid_features: tuple[int, ...],
+        out_features: int,
+        rngs: nnx.Rngs,
+    ) -> None:
+        input_size_per_layer = (input_features,) + mid_features
+        output_size_per_layer = mid_features + (out_features,)
+        self.linear_layers = [
+            nnx.Linear(single_input_size, single_output_size, rngs=rngs)
+            for single_input_size, single_output_size in zip(
+                input_size_per_layer, output_size_per_layer
+            )
+        ]
 
-    @nn.compact
     def __call__(
         self,
         rays: jt.ArrayLike,
@@ -49,35 +72,10 @@ class FineMLP(nn.Module):
         @return Predicted features. Shapes: `(number_of_rays, self.out_features)`.
 
         """
-        rays = jnp.array(rays)
-        for out_feat_count in self.mid_features:
-            rays = nn.Dense(out_feat_count)(rays)
-            rays = nn.relu(rays)
-        return nn.Dense(self.out_features)(rays)
-
-
-class FullNeRF(nn.Module):
-    """A full NeRF network as described in the paper."""
-
-    coarse_mid_features: tuple[int, ...]
-    fine_mid_features: int
-    prng_key: jt.ArrayLike
-
-    @nn.compact
-    def __call__(
-        self,
-        points: jt.ArrayLike,
-    ):
-        points = jnp.array(points)
-        coarse_features = CoarseMLP(self.coarse_mid_features, self.fine_mid_features)(
-            points
-        )
-        fine_sampling_distributions = self.compute_fine_sampling_distribution(
-            coarse_features
-        )
-        fine_sampling_points = jax.random.uniform(
-            self.prng_key,
-        )
+        x = jnp.array(rays)
+        for layer in self.linear_layers:
+            x = nnx.relu(layer(x))
+        return x
 
 
 def compute_rays_in_world_frame(
