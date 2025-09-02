@@ -249,7 +249,7 @@ def sample_coarse_mlp_inputs(
     return sampled_points_and_directions
 
 
-def blend_ray_features_with_nerf_paper_method(ray_features: jax.Array) -> jax.Array:
+def blend_ray_features_with_nerf_paper_method(ray_features: jt.ArrayLike) -> jax.Array:
     """Compute one color for each ray, by using the NeRF paper's rendering method.
 
     We split the (near_point, far_point) interval into N regularly-sized bins, then sample one point, $t_i$, uniformly
@@ -263,26 +263,30 @@ def blend_ray_features_with_nerf_paper_method(ray_features: jax.Array) -> jax.Ar
 
     @param ray_features Coordinates, color, and transparency sampled along rays. Shape: (..., pos_per_ray, 7).
     Second axis: x, y, z, R, G, B, sigma.
-    @return One color per ray. Shape: (num_rays, ..., 3). Last axis: R, G, B.
+    @return One color per ray. Shape: (..., 3). Last axis: R, G, B.
     """
     ray_features = jnp.array(ray_features)
-    # compute length and center of intervals between samples
-    interval_lengths = ray_features[..., 1:, :3] - ray_features[..., :-1, :3]
-    interval_centers = ray_features[..., :-1, :3] + (
-        (ray_features[..., 1:, :3] - ray_features[..., :-1, :3]) / 2
+
+    densities = ray_features[..., :-1, 6:7]
+    colors = ray_features[..., :-1, 3:6]
+    positions = ray_features[..., :, 0:3]
+    interval_lengths = jnp.linalg.norm(
+        positions[..., 1:, :] - positions[..., :-1, :], axis=-1, keepdims=True
     )
-    # compute distances between origin and interval centers and samples
-    origin_center_distances = norm_eucl_3d(interval_centers, homogeneous=False)
-    origin_sample_distances = norm_eucl_3d(ray_features[..., :, :3], homogeneous=False)
-    # interpolate values at midpoints between samples
-    center_values = jnp.interp(
-        origin_center_distances, origin_sample_distances, ray_features[..., :, 3:]
+
+    density_distance_products = densities * interval_lengths
+    accumulated_densities = jnp.cumulative_sum(
+        density_distance_products, axis=-2, include_initial=True
+    )[..., :-1, :]
+    remaining_transmittance = jnp.exp(-accumulated_densities)
+
+    alpha_values = 1 - jnp.exp(-densities * interval_lengths)
+    individual_rendering_components = remaining_transmittance * alpha_values * colors
+
+    final_rendered_colors = jnp.sum(
+        individual_rendering_components, axis=-2, keepdims=False
     )
-    # weight interpolated colors at midpoints with interval lengths and interpolated sigma values
-    blended_values = jnp.sum(
-        center_values[..., :3] * center_values[..., 3] * interval_lengths, axis=-2
-    )
-    return blended_values
+    return final_rendered_colors
 
 
 def compute_nerf_positional_encoding(
