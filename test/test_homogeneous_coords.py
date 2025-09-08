@@ -1,14 +1,13 @@
 import jax.numpy as jnp
 
 from reimpl_a_gn.threed.rendering import (
+    from_homogeneous,
     to_homogeneous_points,
     to_homogeneous_vectors,
-    from_homogeneous,
 )
 
 
 class TestHomogeneousCoordinates:
-
     def test_to_homogeneous_points_single(self):
         point = jnp.array([1.0, 2.0, 3.0])
         result = to_homogeneous_points(point)

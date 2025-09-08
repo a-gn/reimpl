@@ -295,7 +295,8 @@ def compute_nerf_positional_encoding(
     """Compute the NeRF paper's positional encoding of a set of points and associated directions.
 
     @param points_and_directions Rays to encode. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
-    @return Positional encoding of the points. Shape: (..., 6, 2 * components).
+    @return Positional encoding of the points. Shape: (..., 6 * 2 * components). The embeddings of all coordinates are
+    concatenated on the last dimension (the output has the same number of dimension as the input).
     """
 
     points_and_directions = jnp.array(points_and_directions)
@@ -309,10 +310,9 @@ def compute_nerf_positional_encoding(
     )
 
     for power_of_two in range(components):
-        result = result.at[..., power_of_two * 2].set(
-            jnp.sin(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
-        )
-        result = result.at[..., power_of_two * 2 + 1].set(
-            jnp.cos(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
-        )
+        sin_vals = jnp.sin(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
+        cos_vals = jnp.cos(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
+
+        result = result.at[..., :, 2 * power_of_two].set(sin_vals)
+        result = result.at[..., :, 2 * power_of_two + 1].set(cos_vals)
     return result

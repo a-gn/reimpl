@@ -30,6 +30,7 @@ dev = [
     "black>=24.8.0",
     "ruff>=0.6.0",
     "nbstripout>=0.8.1",
+    "pyright>=1.1.405",
 ]
 
 [build-system]
@@ -44,3 +45,17 @@ testpaths = [
 pythonpath = [
     ".",
 ]
+
+[tool.pyright]
+include = ["reimpl_a_gn", "test"]
+exclude = ["external/**"]
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportPrivateImportUsage = false
+reportArgumentType = false
+reportAttributeAccessIssue = false
+reportReturnType = false
+reportPossiblyUnboundVariable = false
+reportGeneralTypeIssues = false
+reportUnusedImport = true
+pythonVersion = "3.13"

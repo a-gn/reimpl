@@ -2,8 +2,8 @@
 
 from functools import partial
 
-import jax.lax as lax
 import jax
+import jax.lax as lax
 import jax.numpy as jnp
 import jax.typing as jt
 

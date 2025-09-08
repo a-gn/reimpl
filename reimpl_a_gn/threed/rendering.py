@@ -5,7 +5,7 @@ import jax.typing as jt
 
 def to_homogeneous_points(points: jt.ArrayLike) -> jax.Array:
     """Convert 3D points to homogeneous coordinates.
-    
+
     @param points Shape: (..., 3). Last axis: x, y, z.
     @return Homogeneous points. Shape: (..., 4). Last axis: x, y, z, w=1.
     """
@@ -16,7 +16,7 @@ def to_homogeneous_points(points: jt.ArrayLike) -> jax.Array:
 
 def to_homogeneous_vectors(vectors: jt.ArrayLike) -> jax.Array:
     """Convert 3D vectors to homogeneous coordinates.
-    
+
     @param vectors Shape: (..., 3). Last axis: dx, dy, dz.
     @return Homogeneous vectors. Shape: (..., 4). Last axis: dx, dy, dz, w=0.
     """
@@ -27,7 +27,7 @@ def to_homogeneous_vectors(vectors: jt.ArrayLike) -> jax.Array:
 
 def from_homogeneous(coords: jt.ArrayLike) -> jax.Array:
     """Convert homogeneous coordinates back to 3D.
-    
+
     @param coords Shape: (..., 4). Last axis: x, y, z, w.
     @return 3D coordinates. Shape: (..., 3). For points, divides by w. For vectors (w=0), keeps xyz.
     """
@@ -37,7 +37,7 @@ def from_homogeneous(coords: jt.ArrayLike) -> jax.Array:
     result = jnp.where(
         jnp.expand_dims(is_vector, -1),
         coords[..., :3],  # vectors: keep xyz as-is
-        coords[..., :3] / jnp.expand_dims(coords[..., 3], -1)  # points: divide by w
+        coords[..., :3] / jnp.expand_dims(coords[..., 3], -1),  # points: divide by w
     )
     return result
 
@@ -351,4 +351,3 @@ def sample_rays_towards_pixels(
     ray_directions = from_homogeneous(ray_directions_homo)
     ray_coords = ray_coords.at[:, 3:6].set(ray_directions)
     return ray_coords
-

@@ -3,14 +3,11 @@ from pathlib import Path
 import jax.numpy as jnp
 import jax.random as rand
 import kagglehub
-import matplotlib.pyplot as plt
 from flax import nnx
 
 from reimpl_a_gn.dataset.synthetic_nerf_dataset import load_synthetic_nerf_dataset
 from reimpl_a_gn.threed.nerf import (
     CoarseMLP,
-    FineMLP,
-    compute_fine_sampling_distribution,
     compute_nerf_positional_encoding,
     sample_coarse_mlp_inputs,
 )

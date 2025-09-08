@@ -6,7 +6,6 @@ Written by Claude Sonnet 4.
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from reimpl_a_gn.random import piecewise_uniform
 

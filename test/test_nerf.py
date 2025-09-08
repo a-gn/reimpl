@@ -14,7 +14,9 @@ def rngs_7():
 def test_pass_data_through_coarse_mlp(rngs_7: nnx.Rngs):
     mlp = nerf.CoarseMLP(6, (64, 64, 64), 9, rngs=rngs_7)
     prng_key = jax.random.key(7)
-    data = jax.random.uniform(prng_key, (4, 6), float, -10000, 10000)  # 6D instead of 32D
+    data = jax.random.uniform(
+        prng_key, (4, 6), float, -10000, 10000
+    )  # 6D instead of 32D
     result = mlp(data)
     assert result.shape == (4, 9)
 
@@ -22,7 +24,9 @@ def test_pass_data_through_coarse_mlp(rngs_7: nnx.Rngs):
 def test_pass_data_through_fine_mlp(rngs_7: nnx.Rngs):
     mlp = nerf.FineMLP(6, (64, 64, 64), 9, rngs=rngs_7)
     prng_key = jax.random.key(7)
-    data = jax.random.uniform(prng_key, (4, 6), float, -10000, 10000)  # 6D instead of 32D
+    data = jax.random.uniform(
+        prng_key, (4, 6), float, -10000, 10000
+    )  # 6D instead of 32D
     result = mlp(data)
     assert result.shape == (4, 9)
 
@@ -61,70 +65,93 @@ def test_compute_fine_sampling_distribution():
     assert jnp.allclose(computed_distribution, expected_distribution)
 
 
-@pytest.mark.parametrize("ray_features,expected_result,description,atol", [
-    # Test case 1: Simple case with 2 points to make calculation clearer
-    (
-        jnp.array([
-            [
-                [
-                    # Point 1: position (0,0,0), color (1,0,0), density 1.0
-                    [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
-                    # Point 2: position (1,0,0), color (0,1,0), density 2.0
-                    [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0],
-                ]
-            ]
-        ]),
-        lambda: jnp.array([[[
-            1.0 * (1 - jnp.exp(-1.0)) * 1.0,  # Red: only first point contributes
-            1.0 * (1 - jnp.exp(-1.0)) * 0.0,  # Green: only first point contributes  
-            1.0 * (1 - jnp.exp(-1.0)) * 0.0,  # Blue: only first point contributes
-        ]]]),
-        "two_points_with_density",
-        1e-5,
-    ),
-    # Test case 2: Edge case - zero density should pass through completely
-    (
-        jnp.array([
-            [
-                [
-                    [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],  # Red, no density
-                    [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],  # Green, no density
-                ]
-            ]
-        ]),
-        lambda: jnp.zeros((1, 1, 3)),
-        "zero_density_passthrough",
-        1e-6,
-    ),
-    # Test case 3: Single point with density (boundary case)
-    (
-        jnp.array([
-            [
+@pytest.mark.parametrize(
+    "ray_features,expected_result,description,atol",
+    [
+        # Test case 1: Simple case with 2 points to make calculation clearer
+        (
+            jnp.array(
                 [
                     [
-                        0.0,
-                        0.0,
-                        0.0,
-                        0.5,
-                        0.3,
-                        0.8,
-                        2.0,
-                    ],  # Purple point with density 2.0
+                        [
+                            # Point 1: position (0,0,0), color (1,0,0), density 1.0
+                            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+                            # Point 2: position (1,0,0), color (0,1,0), density 2.0
+                            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0],
+                        ]
+                    ]
                 ]
-            ]
-        ]),
-        None,  # No specific expected result, just check shape
-        "single_point_boundary_case",
-        1e-6,
-    ),
-])
-def test_blend_ray_features_with_nerf_paper_method(ray_features, expected_result, description, atol):
+            ),
+            lambda: jnp.array(
+                [
+                    [
+                        [
+                            1.0
+                            * (1 - jnp.exp(-1.0))
+                            * 1.0,  # Red: only first point contributes
+                            1.0
+                            * (1 - jnp.exp(-1.0))
+                            * 0.0,  # Green: only first point contributes
+                            1.0
+                            * (1 - jnp.exp(-1.0))
+                            * 0.0,  # Blue: only first point contributes
+                        ]
+                    ]
+                ]
+            ),
+            "two_points_with_density",
+            1e-5,
+        ),
+        # Test case 2: Edge case - zero density should pass through completely
+        (
+            jnp.array(
+                [
+                    [
+                        [
+                            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],  # Red, no density
+                            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],  # Green, no density
+                        ]
+                    ]
+                ]
+            ),
+            lambda: jnp.zeros((1, 1, 3)),
+            "zero_density_passthrough",
+            1e-6,
+        ),
+        # Test case 3: Single point with density (boundary case)
+        (
+            jnp.array(
+                [
+                    [
+                        [
+                            [
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.5,
+                                0.3,
+                                0.8,
+                                2.0,
+                            ],  # Purple point with density 2.0
+                        ]
+                    ]
+                ]
+            ),
+            None,  # No specific expected result, just check shape
+            "single_point_boundary_case",
+            1e-6,
+        ),
+    ],
+)
+def test_blend_ray_features_with_nerf_paper_method(
+    ray_features, expected_result, description, atol
+):
     """Test the NeRF paper's volume rendering implementation."""
     result = nerf.blend_ray_features_with_nerf_paper_method(ray_features)
-    
+
     # Always check shape
     assert result.shape == (1, 1, 3), f"Expected shape (1, 1, 3), got {result.shape}"
-    
+
     # Check expected result if provided
     if expected_result is not None:
         expected = expected_result()
