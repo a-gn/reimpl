@@ -305,14 +305,23 @@ def compute_nerf_positional_encoding(
             f"expected input shape (..., 6), got shape {points_and_directions.shape}"
         )
 
-    result = jnp.zeros(
-        list(points_and_directions.shape[:-1]) + [6, 2 * components], dtype=float
+    exponents = jnp.arange(0, components).reshape(
+        # 1s over all input axes
+        *([1] * (len(points_and_directions.shape))),
+        # all components on a new axis so that product broadcasts each of the 6 input coordinates over all exponents
+        components,
+    )
+    points_and_directions_with_broadcast_axis = points_and_directions.reshape(
+        *points_and_directions.shape, 1
+    )
+    arguments = (
+        jnp.pow(2, exponents) * jnp.pi * points_and_directions_with_broadcast_axis
+    )
+    sine_results = jnp.sin(arguments)
+    cosine_results = jnp.cos(arguments)
+    full_results = jnp.concatenate([sine_results, cosine_results], axis=-1)
+    full_results = full_results.reshape(
+        *(points_and_directions.shape[:-1]), 6 * 2 * components
     )
 
-    for power_of_two in range(components):
-        sin_vals = jnp.sin(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
-        cos_vals = jnp.cos(jnp.pow(2, power_of_two) * jnp.pi * points_and_directions)
-
-        result = result.at[..., :, 2 * power_of_two].set(sin_vals)
-        result = result.at[..., :, 2 * power_of_two + 1].set(cos_vals)
-    return result
+    return full_results
