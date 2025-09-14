@@ -269,16 +269,14 @@ class NeRFVisualizer:
         @return: Figure and axes objects.
         @raises ValueError: If required data is not loaded.
         """
-        if self.data is None or any(
-            getattr(self.data, attr) is None
-            for attr in [
-                "coarse_sampling_points",
-                "coarse_colors",
-                "coarse_densities",
-                "fine_sampling_points",
-                "fine_colors",
-                "fine_densities",
-            ]
+        if (
+            self.data is None
+            or self.data.coarse_sampling_points is None
+            or self.data.coarse_colors is None
+            or self.data.coarse_densities is None
+            or self.data.fine_sampling_points is None
+            or self.data.fine_colors is None
+            or self.data.fine_densities is None
         ):
             raise ValueError("Both coarse and fine network prediction data required")
 
@@ -371,7 +369,7 @@ class NeRFVisualizer:
 
         # 1. Camera setup
         if self.data is not None and self.data.cameras is not None:
-            fig, ax = overview_manager.create_plot("cameras", "Camera Setup")
+            overview_manager.create_plot("cameras", "Camera Setup")
             visualize_cameras(
                 self.data.cameras,
                 marked_camera=self.data.marked_camera,
@@ -384,7 +382,7 @@ class NeRFVisualizer:
             and self.data.pixel_coordinates is not None
             and self.data.rays is not None
         ):
-            fig, ax = overview_manager.create_plot("rays", "Ray Sampling")
+            overview_manager.create_plot("rays", "Ray Sampling")
             camera = self.data.cameras[0] if self.data.cameras else None
             visualize_ray_sampling(
                 camera,
@@ -396,27 +394,40 @@ class NeRFVisualizer:
             )
 
         # 3. Coarse predictions
-        if self.data is not None and all(
-            getattr(self.data, attr) is not None
-            for attr in ["coarse_sampling_points", "coarse_colors", "coarse_densities"]
+        if (
+            self.data is not None
+            and self.data.coarse_sampling_points is not None
+            and self.data.coarse_colors is not None
+            and self.data.coarse_densities is not None
         ):
-            fig, ax = overview_manager.create_plot("coarse", "Coarse Network")
+            overview_manager.create_plot("coarse", "Coarse Network")
             self.show_coarse_predictions(max_rays=max_rays)
 
         # 4. Fine predictions (if available)
-        if self.data is not None and all(
-            getattr(self.data, attr) is not None
-            for attr in ["fine_sampling_points", "fine_colors", "fine_densities"]
+        if (
+            self.data is not None
+            and self.data.fine_sampling_points is not None
+            and self.data.fine_colors is not None
+            and self.data.fine_densities is not None
         ):
-            fig, ax = overview_manager.create_plot("fine", "Fine Network")
+            overview_manager.create_plot("fine", "Fine Network")
             self.show_fine_predictions(max_rays=max_rays)
 
         # 5. Volume rendering
-        try:
-            fig, ax = overview_manager.create_plot("volume", "Volume Rendering")
+        if self.data is not None and (
+            (
+                self.data.coarse_sampling_points is not None
+                and self.data.coarse_colors is not None
+                and self.data.coarse_densities is not None
+            )
+            or (
+                self.data.fine_sampling_points is not None
+                and self.data.fine_colors is not None
+                and self.data.fine_densities is not None
+            )
+        ):
+            overview_manager.create_plot("volume", "Volume Rendering")
             self.show_volume_rendering(max_rays=max_rays)
-        except ValueError:
-            pass  # Skip if data not available
 
         return overview_manager
 
@@ -455,29 +466,17 @@ class NeRFVisualizer:
                     self.show_ray_sampling()
                     plt.show()
                 elif command == "coarse":
-                    try:
-                        self.show_coarse_predictions()
-                        plt.show()
-                    except ValueError as e:
-                        print(f"Error: {e}")
+                    self.show_coarse_predictions()
+                    plt.show()
                 elif command == "fine":
-                    try:
-                        self.show_fine_predictions()
-                        plt.show()
-                    except ValueError as e:
-                        print(f"Error: {e}")
+                    self.show_fine_predictions()
+                    plt.show()
                 elif command == "compare":
-                    try:
-                        self.show_coarse_vs_fine()
-                        plt.show()
-                    except ValueError as e:
-                        print(f"Error: {e}")
+                    self.show_coarse_vs_fine()
+                    plt.show()
                 elif command == "volume":
-                    try:
-                        self.show_volume_rendering()
-                        plt.show()
-                    except ValueError as e:
-                        print(f"Error: {e}")
+                    self.show_volume_rendering()
+                    plt.show()
                 elif command == "overview":
                     manager = self.show_pipeline_overview()
                     manager.show_all()
@@ -487,13 +486,11 @@ class NeRFVisualizer:
             except KeyboardInterrupt:
                 print("\nExiting...")
                 break
-            except Exception as e:
-                print(f"Error: {e}")
 
     def save_visualizations(
         self,
         output_dir: str = "nerf_visualizations",
-        formats: Sequence[str] = ("png",),
+        formats: tuple[str, ...] = ("png",),
         dpi: int = 300,
     ) -> None:
         """Save all available visualizations to files.
@@ -510,11 +507,8 @@ class NeRFVisualizer:
 
         # Camera visualization
         if self.data is not None and self.data.cameras is not None:
-            try:
-                fig, _ = self.show_cameras()
-                visualizations_to_save.append((fig, "cameras"))
-            except Exception as e:
-                print(f"Skipping cameras visualization: {e}")
+            fig, _ = self.show_cameras()
+            visualizations_to_save.append((fig, "cameras"))
 
         # Ray sampling
         if (
@@ -522,38 +516,50 @@ class NeRFVisualizer:
             and self.data.pixel_coordinates is not None
             and self.data.rays is not None
         ):
-            try:
-                fig, _ = self.show_ray_sampling()
-                visualizations_to_save.append((fig, "ray_sampling"))
-            except Exception as e:
-                print(f"Skipping ray sampling visualization: {e}")
+            fig, _ = self.show_ray_sampling()
+            visualizations_to_save.append((fig, "ray_sampling"))
 
-        # Network predictions
-        for network_type in ["coarse", "fine"]:
-            try:
-                if network_type == "coarse":
-                    fig, _ = self.show_coarse_predictions()
-                else:
-                    fig, _ = self.show_fine_predictions()
-                visualizations_to_save.append((fig, f"{network_type}_predictions"))
-            except Exception as e:
-                print(f"Skipping {network_type} predictions visualization: {e}")
+        # Network predictions - coarse
+        if (
+            self.data is not None
+            and self.data.coarse_sampling_points is not None
+            and self.data.coarse_colors is not None
+            and self.data.coarse_densities is not None
+        ):
+            fig, _ = self.show_coarse_predictions()
+            visualizations_to_save.append((fig, "coarse_predictions"))
+
+        # Network predictions - fine
+        if (
+            self.data is not None
+            and self.data.fine_sampling_points is not None
+            and self.data.fine_colors is not None
+            and self.data.fine_densities is not None
+        ):
+            fig, _ = self.show_fine_predictions()
+            visualizations_to_save.append((fig, "fine_predictions"))
 
         # Volume rendering
-        try:
+        if self.data is not None and (
+            (
+                self.data.coarse_sampling_points is not None
+                and self.data.coarse_colors is not None
+                and self.data.coarse_densities is not None
+            )
+            or (
+                self.data.fine_sampling_points is not None
+                and self.data.fine_colors is not None
+                and self.data.fine_densities is not None
+            )
+        ):
             fig, _ = self.show_volume_rendering()
             visualizations_to_save.append((fig, "volume_rendering"))
-        except Exception as e:
-            print(f"Skipping volume rendering visualization: {e}")
 
         # Save all figures
         for fig, name in visualizations_to_save:
             for fmt in formats:
                 filepath = os.path.join(output_dir, f"{name}.{fmt}")
                 fig.savefig(filepath, dpi=dpi, bbox_inches="tight")
-                print(f"Saved {filepath}")
-
-        print(f"Saved {len(visualizations_to_save)} visualizations to {output_dir}")
 
 
 def create_quick_visualizer(

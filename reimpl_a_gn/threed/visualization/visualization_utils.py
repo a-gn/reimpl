@@ -3,17 +3,13 @@
 Originally written by Claude Sonnet 4 on 2025/09/07
 """
 
-from typing import TYPE_CHECKING
-
 import jax.numpy as jnp
 import jax.typing as jt
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
-
-if TYPE_CHECKING:
-    from matplotlib.figure import Figure
-    from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import Axes3D
 
 from ..rendering import CameraParams
 
@@ -56,7 +52,7 @@ def create_custom_colormap(
 
 def setup_3d_plot(
     figsize: tuple[int, int] = (12, 10), title: str = "NeRF Visualization"
-) -> tuple["Figure", "Axes3D"]:  # type: ignore
+) -> tuple[Figure, Axes3D]:
     """Set up a 3D matplotlib plot with standard configuration.
 
     @param figsize: Figure size in inches.
@@ -64,15 +60,15 @@ def setup_3d_plot(
     @return: Tuple of (figure, axes) objects.
     """
     fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(111, projection="3d")  # type: ignore
+    ax = fig.add_subplot(111, projection="3d")
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xlabel("X", fontsize=12)
     ax.set_ylabel("Y", fontsize=12)
-    ax.set_zlabel("Z", fontsize=12)  # type: ignore
+    ax.set_zlabel("Z", fontsize=12)
 
     # Set equal aspect ratio for better visualization
-    ax.set_box_aspect((1, 1, 1))  # type: ignore
-    return fig, ax  # type: ignore
+    ax.set_box_aspect((1, 1, 1))
+    return fig, ax
 
 
 def compute_axis_vectors(
@@ -102,7 +98,7 @@ def compute_axis_vectors(
 
 
 def plot_coordinate_axes(
-    ax: "Axes3D",
+    ax: Axes3D,
     origin: jt.ArrayLike,
     x_axis: jt.ArrayLike,
     y_axis: jt.ArrayLike,
@@ -143,7 +139,7 @@ def plot_coordinate_axes(
 
 
 def plot_world_origin(
-    ax: "Axes3D",
+    ax: Axes3D,
     scale: float = 1.0,
     colors: tuple[str, str, str] = ("darkred", "darkgreen", "darkblue"),
     alpha: float = 0.6,
@@ -206,7 +202,7 @@ def compute_plot_bounds(
 
 
 def set_axis_bounds(
-    ax: "Axes3D",
+    ax: Axes3D,
     bounds: tuple[tuple[float, float], tuple[float, float], tuple[float, float]],
 ) -> None:
     """Set 3D axis bounds.
@@ -280,7 +276,7 @@ class PlotManager:
         name: str,
         title: str | None = None,
         figsize: tuple[int, int] | None = None,
-    ) -> tuple["Figure", "Axes3D"]:
+    ) -> tuple[Figure, Axes3D]:
         """Create a new 3D plot.
 
         @param name: Unique name for the plot.
@@ -299,7 +295,7 @@ class PlotManager:
         self.current_plot = name
         return fig, ax
 
-    def get_plot(self, name: str) -> tuple["Figure", "Axes3D"]:
+    def get_plot(self, name: str) -> tuple[Figure, Axes3D]:
         """Get an existing plot.
 
         @param name: Name of the plot.
