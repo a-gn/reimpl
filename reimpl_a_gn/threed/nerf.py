@@ -114,7 +114,6 @@ def compute_rays_in_world_frame(
     return ray_directions_and_origins_world
 
 
-@jax.jit
 def compute_fine_sampling_distribution(
     densities: jt.ArrayLike,
     sampling_positions: jt.ArrayLike,
