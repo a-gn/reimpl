@@ -1,20 +1,17 @@
 """Utilities for random sampling."""
 
-from functools import partial
-
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.typing as jt
 
 
-@partial(jax.jit, static_argnames=["sample_count_per_distribution"])
 def piecewise_uniform(
     key: jt.ArrayLike,
     intervals: jt.ArrayLike,
     pdf_values: jt.ArrayLike,
     sample_count_per_distribution: int,
-):
+) -> jax.Array:
     """Sample from a piecewise uniform distribution.
 
     @param key The PRNG key to use for `jax.random`.

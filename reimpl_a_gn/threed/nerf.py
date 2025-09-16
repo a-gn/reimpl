@@ -64,7 +64,7 @@ class FineMLP(nnx.Module):
     def __call__(
         self,
         rays: jt.ArrayLike,
-    ):
+    ) -> jax.Array:
         """Predict features for the given rays.
 
         @param rays Origins and direction unit vectors for all rays.

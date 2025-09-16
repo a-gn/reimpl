@@ -20,6 +20,7 @@ from reimpl_a_gn.threed.nerf import (
     sample_coarse_mlp_inputs,
 )
 from reimpl_a_gn.threed.rendering import sample_rays_towards_pixels
+from reimpl_a_gn.threed.visualization.export_array import array_to_csv
 
 rng_key = key(seed=7)
 
@@ -90,3 +91,35 @@ coarse_positions_on_rays = jnp.linalg.norm(coarse_positions[..., :3], axis=-1)
 fine_position_distribution = compute_fine_sampling_distribution(
     densities=coarse_densities, sampling_positions=coarse_positions_on_rays
 )
+
+rng_key, rng_subkey = split(rng_key)
+fine_positions_on_rays = piecewise_uniform(
+    key=rng_subkey,
+    intervals=coarse_positions_on_rays,
+    pdf_values=fine_position_distribution,
+    sample_count_per_distribution=5,
+)
+del rng_subkey
+
+ray_unit_direction_vectors = rays[..., 3:6] / jnp.linalg.norm(
+    rays[..., 3:6], axis=-1, keepdims=True
+)
+fine_positions = jnp.expand_dims(rays[..., :3], -2) + jnp.expand_dims(
+    ray_unit_direction_vectors, -2
+) * jnp.expand_dims(fine_positions_on_rays, -1)
+# add ray directions
+fine_positions = jnp.concat(
+    [
+        fine_positions,
+        jnp.repeat(jnp.expand_dims(ray_unit_direction_vectors, -2), axis=-2, repeats=5),
+    ],
+    axis=-1,
+)
+
+encoded_fine_positions = compute_nerf_positional_encoding(fine_positions, 2)
+
+rng_key, rng_subkey = split(rng_key)
+fine_network = FineMLP(6 * 2 * 2, (64, 64), 4, rngs=Rngs(rng_subkey))
+del rng_subkey
+
+fine_predictions = fine_network(encoded_fine_positions)
