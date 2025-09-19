@@ -73,8 +73,12 @@ class FineMLP(nnx.Module):
 
         """
         x = jnp.array(rays)
-        for layer in self.linear_layers:
-            x = nnx.relu(layer(x))
+        for layer_index, layer in enumerate(self.linear_layers):
+            x = layer(x)
+            # all layers but last are ReLU-activated
+            if layer_index <= len(self.linear_layers) - 2:
+                x = nnx.relu(x)
+        x = nnx.sigmoid(x)
         return x
 
 
@@ -261,7 +265,7 @@ def blend_ray_features_with_nerf_paper_method(ray_features: jt.ArrayLike) -> jax
     $t_{i-1}$ and $t_i$.
 
     @param ray_features Coordinates, color, and transparency sampled along rays. Shape: (..., pos_per_ray, 7).
-    Second axis: x, y, z, R, G, B, sigma.
+    Last axis: x, y, z, R, G, B, sigma.
     @return One color per ray. Shape: (..., 3). Last axis: R, G, B.
     """
     ray_features = jnp.array(ray_features)

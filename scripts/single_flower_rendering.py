@@ -1,12 +1,13 @@
 """Loads one image and pose from the flower datasets, renders one color per pixel.
 
-Will only output noise as of now since I didn't train anything.
+Will only output noise as of now since I don't train anything.
 """
 
 from pathlib import Path
 
 import jax.numpy as jnp
 import kagglehub
+import matplotlib.pyplot as plt
 from flax.nnx import Rngs
 from jax.random import key, split
 
@@ -15,12 +16,12 @@ from reimpl_a_gn.random import piecewise_uniform
 from reimpl_a_gn.threed.nerf import (
     CoarseMLP,
     FineMLP,
+    blend_ray_features_with_nerf_paper_method,
     compute_fine_sampling_distribution,
     compute_nerf_positional_encoding,
     sample_coarse_mlp_inputs,
 )
 from reimpl_a_gn.threed.rendering import sample_rays_towards_pixels
-from reimpl_a_gn.threed.visualization.export_array import array_to_csv
 
 rng_key = key(seed=7)
 
@@ -44,9 +45,10 @@ first_camera = flower_dataset.cameras[0]
 near_distance = 0.01
 far_distance = 5
 
+first_image_height, first_image_width, _ = first_image.shape
 
-def get_rays():
-    image_height, image_width, _ = first_image.shape
+
+def get_rays(image_height: int, image_width: int):
     pixel_xs, pixel_ys = jnp.meshgrid(
         jnp.arange(0, image_height), jnp.arange(0, image_width)
     )
@@ -54,10 +56,9 @@ def get_rays():
     assert pixel_coords.ndim == 2 and pixel_coords.shape[1] == 2
 
     pixel_rays = sample_rays_towards_pixels(first_camera, pixel_coords)
-    return pixel_rays
+    return pixel_coords, pixel_rays
 
-
-rays = get_rays()
+pixel_coords, rays = get_rays(first_image_height, first_image_width)
 
 # coarse MLP
 
@@ -123,3 +124,13 @@ fine_network = FineMLP(6 * 2 * 2, (64, 64), 4, rngs=Rngs(rng_subkey))
 del rng_subkey
 
 fine_predictions = fine_network(encoded_fine_positions)
+
+blending_inputs = jnp.concat([fine_positions, fine_predictions], axis=-1)
+blended_colors_per_ray = blend_ray_features_with_nerf_paper_method(
+    ray_features=blending_inputs
+)
+blended_colors_per_ray = blended_colors_per_ray.reshape(
+    (first_image_height, first_image_width, 3)
+)
+plt.imshow(blended_colors_per_ray)
+plt.show()
