@@ -119,8 +119,7 @@ def compute_rays_in_world_frame(
 
 
 def compute_fine_sampling_distribution(
-    densities: jt.ArrayLike,
-    sampling_positions: jt.ArrayLike,
+    densities: jt.ArrayLike, sampling_positions: jt.ArrayLike
 ):
     """Compute the distributions from which to sample points to pass through the fine MLP, for a single ray.
 
@@ -129,37 +128,30 @@ def compute_fine_sampling_distribution(
     This is meant to sample from the more computationally expensive MLP using the results of the coarse MLP.
     See the NeRF paper for details.
 
-    @param densities Density values predicted by the coarse MLP. Shape: (num_rays, num_samples,).
+    @param densities Density values predicted by the coarse MLP. Shape: (..., num_samples,).
     @param sampling_positions Positions along the ray at which `densities` were predicted. Same shape as `densities`.
     Must be strictly increasing along the last axis.
-    @return A piecewise-uniform probability distribution represented as a `(num_rays, num_samples + 1,)`-shaped array of
+    @return A piecewise-uniform probability distribution represented as a `(..., num_samples - 1,)`-shaped array of
     probability values. Item with index `n` is the distribution's value in the `n`th interval.
     """
     densities = jnp.array(densities)
     sampling_positions = jnp.array(sampling_positions)
 
-    result = jnp.zeros((densities.shape[0], densities.shape[1] - 1), dtype=float)
+    interval_lengths = sampling_positions[..., 1:] - sampling_positions[..., :-1]
 
-    cumulative_transmittance = jnp.cumulative_sum(
-        -densities[:, :-1] * (sampling_positions[:, 1:] - sampling_positions[:, :-1]),
-        axis=1,
-        include_initial=True,
-    )
-    for interval_index in range(0, sampling_positions.shape[1] - 1):
-        result = result.at[:, interval_index].set(
-            jnp.exp(cumulative_transmittance[:, interval_index])
-            * (
-                1
-                - jnp.exp(
-                    -densities[:, interval_index]
-                    * (
-                        sampling_positions[:, interval_index + 1]
-                        - sampling_positions[:, interval_index]
-                    )
-                )
-            )
+    # T(r(s))
+    accumulated_transmittance = jnp.exp(
+        jnp.cumulative_sum(
+            -densities[..., :-2] * interval_lengths[..., :-1],
+            axis=-1,
+            include_initial=True,
         )
-    return result
+    )
+    unnormalized_pdf = accumulated_transmittance * (
+        1 - jnp.exp(-densities[..., :-1] * interval_lengths)
+    )
+    pdf = unnormalized_pdf / jnp.sum(unnormalized_pdf, axis=-1, keepdims=True)
+    return pdf
 
 
 def sample_regular_positions_along_rays(
