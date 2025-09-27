@@ -97,7 +97,7 @@ rng_key, rng_subkey = split(rng_key)
 fine_positions_on_rays = piecewise_uniform(
     key=rng_subkey,
     intervals=coarse_positions_on_rays,
-    pdf_values=fine_position_distribution,
+    interval_probabilities=fine_position_distribution,
     sample_count_per_distribution=5,
 )
 del rng_subkey

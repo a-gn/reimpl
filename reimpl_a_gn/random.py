@@ -8,7 +8,7 @@ import jax.typing as jt
 def piecewise_uniform(
     key: jt.ArrayLike,
     intervals: jt.ArrayLike,
-    pdf_values: jt.ArrayLike,
+    interval_probabilities: jt.ArrayLike,
     sample_count_per_distribution: int,
 ) -> jax.Array:
     """Sample from a piecewise uniform distribution.
@@ -17,8 +17,8 @@ def piecewise_uniform(
     @param distributions Piecewise-uniform distributions' interval bounds. Those are the "pieces" that internally have
     uniform probabilities.
     Shape: `(..., interval_count + 1)`.
-    @param pdf_values Piecewise-uniform distributions' probability density values. One for every interval.
-    The sum of the probabilities weighted by the interval lengths must be one.
+    @param interval_probabilities Piecewise-uniform distributions' probability density values. One for every interval.
+    The sums along the last axis must equal one.
     Shape: `(..., interval_count)`.
     @param sample_count_per_distribution The number of values to sample from each distribution.
     @return The values sampled from all distribution. Shape: `(..., sample_count_per_distribution)`.
@@ -26,16 +26,16 @@ def piecewise_uniform(
     """
 
     intervals = jnp.array(intervals)
-    pdf_values = jnp.array(pdf_values)
+    interval_probabilities = jnp.array(interval_probabilities)
 
     interval_lengths = intervals[..., 1:] - intervals[..., :-1]
-    interval_probas = interval_lengths * pdf_values
+    interval_probabilities = interval_lengths * interval_probabilities
 
     interval_choice_key, key = jax.random.split(key)
     chosen_intervals = jax.random.categorical(
         key=interval_choice_key,
         # add broadcast axis for multiple samples per distribution
-        logits=jnp.expand_dims(jnp.log(interval_probas), -1),
+        logits=jnp.expand_dims(jnp.log(interval_probabilities), -1),
         axis=-2,  # category axis is followed by broadcast axis
         shape=intervals.shape[:-1] + (sample_count_per_distribution,),
     )
