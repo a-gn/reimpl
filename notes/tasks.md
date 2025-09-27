@@ -1,6 +1,6 @@
 # Tasks
 
-## Goal: rendering a single image without training
+## (DONE) Goal: rendering a single image without training
 
-- [ ] Write rendering pieces
-- [ ] Fix NaNs and INFs in output of piecewise-uniform fine position sampling
+- [x] Write rendering pieces
+- [x] Fix NaNs and INFs in output of piecewise-uniform fine position sampling
