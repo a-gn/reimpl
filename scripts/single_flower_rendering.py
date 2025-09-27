@@ -3,8 +3,10 @@
 Will only output noise as of now since I don't train anything.
 """
 
+from functools import partial
 from pathlib import Path
 
+import jax
 import jax.numpy as jnp
 import kagglehub
 import matplotlib.pyplot as plt
@@ -21,9 +23,7 @@ from reimpl_a_gn.threed.nerf import (
     compute_nerf_positional_encoding,
     sample_coarse_mlp_inputs,
 )
-from reimpl_a_gn.threed.rendering import sample_rays_towards_pixels
-
-rng_key = key(seed=7)
+from reimpl_a_gn.threed.rendering import CameraParams, sample_rays_towards_pixels
 
 
 def get_flower_dataset():
@@ -36,43 +36,102 @@ def get_flower_dataset():
     return load_synthetic_nerf_dataset(dataset_path)
 
 
-flower_dataset = get_flower_dataset()
-
-first_image = flower_dataset.images[0]
-assert first_image.ndim == 3  # height, width, RGB
-first_camera = flower_dataset.cameras[0]
-
-near_distance = 0.01
-far_distance = 5
-
-first_image_height, first_image_width, _ = first_image.shape
-
-
-def get_rays(image_height: int, image_width: int):
+def get_rays(image_height: int, image_width: int, camera: CameraParams):
     pixel_xs, pixel_ys = jnp.meshgrid(
         jnp.arange(0, image_height), jnp.arange(0, image_width)
     )
     pixel_coords = jnp.stack([pixel_xs.flatten(), pixel_ys.flatten()], axis=1)
     assert pixel_coords.ndim == 2 and pixel_coords.shape[1] == 2
 
-    pixel_rays = sample_rays_towards_pixels(first_camera, pixel_coords)
+    pixel_rays = sample_rays_towards_pixels(camera, pixel_coords)
     return pixel_coords, pixel_rays
 
-pixel_coords, rays = get_rays(first_image_height, first_image_width)
 
-# coarse MLP
+@partial(jax.jit, static_argnames=("camera", "coarse_network", "fine_network"))
+def render_single_image(
+    image: jnp.ndarray,
+    camera: CameraParams,
+    rng_key: jnp.ndarray,
+    coarse_network: CoarseMLP,
+    fine_network: FineMLP,
+    near_distance: float = 0.01,
+    far_distance: float = 5,
+):
+    image_height, image_width, _ = image.shape
 
-rng_key, rng_subkey = split(rng_key)
-coarse_positions = sample_coarse_mlp_inputs(
-    rays,
-    near_distance=near_distance,
-    far_distance=far_distance,
-    bins_per_ray=5,
-    prng_key=rng_subkey,
-)
-del rng_subkey
+    _, rays = get_rays(image_height, image_width, camera)
 
-encoded_coarse_positions = compute_nerf_positional_encoding(coarse_positions, 2)
+    # coarse MLP
+
+    rng_key, rng_subkey = split(rng_key)
+    coarse_positions = sample_coarse_mlp_inputs(
+        rays,
+        near_distance=near_distance,
+        far_distance=far_distance,
+        bins_per_ray=5,
+        prng_key=rng_subkey,
+    )
+    del rng_subkey
+
+    encoded_coarse_positions = compute_nerf_positional_encoding(coarse_positions, 2)
+
+    coarse_logits = coarse_network(encoded_coarse_positions)
+
+    # fine MLP
+
+    coarse_densities = coarse_logits[..., 3]
+    coarse_positions_on_rays = jnp.linalg.norm(coarse_positions[..., :3], axis=-1)
+    fine_position_distribution = compute_fine_sampling_distribution(
+        densities=coarse_densities, sampling_positions=coarse_positions_on_rays
+    )
+
+    rng_key, rng_subkey = split(rng_key)
+    fine_positions_on_rays = piecewise_uniform(
+        key=rng_subkey,
+        intervals=coarse_positions_on_rays,
+        interval_probabilities=fine_position_distribution,
+        sample_count_per_distribution=5,
+    )
+    del rng_subkey
+
+    ray_unit_direction_vectors = rays[..., 3:6] / jnp.linalg.norm(
+        rays[..., 3:6], axis=-1, keepdims=True
+    )
+    fine_positions = jnp.expand_dims(rays[..., :3], -2) + jnp.expand_dims(
+        ray_unit_direction_vectors, -2
+    ) * jnp.expand_dims(fine_positions_on_rays, -1)
+    # add ray directions
+    fine_positions = jnp.concat(
+        [
+            fine_positions,
+            jnp.repeat(
+                jnp.expand_dims(ray_unit_direction_vectors, -2), axis=-2, repeats=5
+            ),
+        ],
+        axis=-1,
+    )
+
+    encoded_fine_positions = compute_nerf_positional_encoding(fine_positions, 2)
+
+    fine_predictions = fine_network(encoded_fine_positions)
+
+    blending_inputs = jnp.concat([fine_positions, fine_predictions], axis=-1)
+    blended_colors_per_ray = blend_ray_features_with_nerf_paper_method(
+        ray_features=blending_inputs
+    )
+    blended_colors_per_ray = blended_colors_per_ray.reshape(
+        (image_height, image_width, 3)
+    )
+    return blended_colors_per_ray
+
+
+rng_key = key(seed=7)
+
+flower_dataset = get_flower_dataset()
+
+first_image = flower_dataset.images[0]
+assert first_image.ndim == 3  # height, width, RGB
+first_camera = flower_dataset.cameras[0]
 
 rng_key, rng_subkey = split(rng_key)
 coarse_network = CoarseMLP(
@@ -83,54 +142,16 @@ coarse_network = CoarseMLP(
 )
 del rng_subkey
 
-coarse_logits = coarse_network(encoded_coarse_positions)
-
-# fine MLP
-
-coarse_densities = coarse_logits[..., 3]
-coarse_positions_on_rays = jnp.linalg.norm(coarse_positions[..., :3], axis=-1)
-fine_position_distribution = compute_fine_sampling_distribution(
-    densities=coarse_densities, sampling_positions=coarse_positions_on_rays
-)
-
-rng_key, rng_subkey = split(rng_key)
-fine_positions_on_rays = piecewise_uniform(
-    key=rng_subkey,
-    intervals=coarse_positions_on_rays,
-    interval_probabilities=fine_position_distribution,
-    sample_count_per_distribution=5,
-)
-del rng_subkey
-
-ray_unit_direction_vectors = rays[..., 3:6] / jnp.linalg.norm(
-    rays[..., 3:6], axis=-1, keepdims=True
-)
-fine_positions = jnp.expand_dims(rays[..., :3], -2) + jnp.expand_dims(
-    ray_unit_direction_vectors, -2
-) * jnp.expand_dims(fine_positions_on_rays, -1)
-# add ray directions
-fine_positions = jnp.concat(
-    [
-        fine_positions,
-        jnp.repeat(jnp.expand_dims(ray_unit_direction_vectors, -2), axis=-2, repeats=5),
-    ],
-    axis=-1,
-)
-
-encoded_fine_positions = compute_nerf_positional_encoding(fine_positions, 2)
-
 rng_key, rng_subkey = split(rng_key)
 fine_network = FineMLP(6 * 2 * 2, (64, 64), 4, rngs=Rngs(rng_subkey))
 del rng_subkey
 
-fine_predictions = fine_network(encoded_fine_positions)
-
-blending_inputs = jnp.concat([fine_positions, fine_predictions], axis=-1)
-blended_colors_per_ray = blend_ray_features_with_nerf_paper_method(
-    ray_features=blending_inputs
+colors = render_single_image(
+    image=first_image,
+    camera=first_camera,
+    rng_key=rng_key,
+    coarse_network=coarse_network,
+    fine_network=fine_network,
 )
-blended_colors_per_ray = blended_colors_per_ray.reshape(
-    (first_image_height, first_image_width, 3)
-)
-plt.imshow(blended_colors_per_ray)
+plt.imshow(colors)
 plt.show()
