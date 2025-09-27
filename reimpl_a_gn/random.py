@@ -34,8 +34,9 @@ def piecewise_uniform(
     interval_choice_key, key = jax.random.split(key)
     chosen_intervals = jax.random.categorical(
         key=interval_choice_key,
-        logits=jnp.log(interval_probas),
-        axis=-1,
+        # add broadcast axis for multiple samples per distribution
+        logits=jnp.expand_dims(jnp.log(interval_probas), -1),
+        axis=-2,  # category axis is followed by broadcast axis
         shape=intervals.shape[:-1] + (sample_count_per_distribution,),
     )
     del interval_choice_key
