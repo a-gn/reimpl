@@ -3,6 +3,7 @@
 Will only output noise as of now since I don't train anything.
 """
 
+from functools import partial
 from pathlib import Path
 
 import jax
@@ -48,6 +49,10 @@ def get_rays(image_height: int, image_width: int, camera: CameraParams):
     return pixel_coords, pixel_rays
 
 
+@partial(
+    jax.jit,
+    static_argnames=["camera", "coarse_network", "fine_network", "ray_batch_size"],
+)
 def render_image(
     image: jt.ArrayLike,
     camera: CameraParams,
