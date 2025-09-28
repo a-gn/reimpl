@@ -214,11 +214,11 @@ class TestPiecewiseUniform:
         key = jax.random.key(7)
         SAMPLE_COUNT = 10000
         interval_bounds = jnp.array([[-10.0, -5.0, -3.0, 5.0, 7.5]])
-        pdf_values = jnp.array([[0.1, 0.025, 0.025, 0.1]])
+        interval_probabilities = jnp.array([[0.1, 0.025, 0.025, 0.1]])
         samples = piecewise_uniform(
             key,
             intervals=interval_bounds,
-            pdf_values=pdf_values,
+            interval_probabilities=interval_probabilities,
             sample_count_per_distribution=SAMPLE_COUNT,  # large sample count
         )
 
@@ -231,8 +231,7 @@ class TestPiecewiseUniform:
                 (lower_bound <= samples[0]) & (samples[0] < upper_bound)
             ).item()
             interval_ratio = value_count_inside_interval / SAMPLE_COUNT
-            interval_size = upper_bound - lower_bound
-            interval_probability = interval_size * pdf_values[0, interval_index].item()
+            interval_probability = interval_probabilities[0, interval_index].item()
             print(
                 f"interval {interval_index} has size ratio {interval_ratio} and probability {interval_probability}"
             )

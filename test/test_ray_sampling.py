@@ -1,8 +1,6 @@
 import jax.numpy as jnp
 
-from reimpl_a_gn.threed.nerf import (
-    sample_regular_positions_along_rays,
-)
+from reimpl_a_gn.threed.rendering import sample_regular_positions_along_rays
 
 
 class TestRaySampling:

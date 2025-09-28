@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.typing as jt
 import matplotlib.pyplot as plt
 
-from .rendering import CameraParams, norm_eucl_3d
+from .rendering import CameraParams
 
 
 def make_non_homogeneous(point: jt.ArrayLike):
@@ -46,11 +46,11 @@ def plot_cameras(cameras: list[CameraParams], marked_camera: int | None = None):
             camera_params.camera_to_world @ jnp.array([0, 0, 1, 1])
         )
         x_direction = jnp.array([x_point - origin_world_non_homogeneous])
-        x_direction /= norm_eucl_3d(x_direction, homogeneous=False) * 15
+        x_direction /= jnp.linalg.norm(x_direction, axis=1, keepdims=True) * 15
         y_direction = jnp.array([y_point - origin_world_non_homogeneous])
-        y_direction /= norm_eucl_3d(y_direction, homogeneous=False) * 15
+        y_direction /= jnp.linalg.norm(y_direction, axis=1, keepdims=True) * 15
         z_direction = jnp.array([z_point - origin_world_non_homogeneous])
-        z_direction /= norm_eucl_3d(z_direction, homogeneous=False) * 15
+        z_direction /= jnp.linalg.norm(z_direction, axis=1, keepdims=True) * 15
         ax.quiver(*origin_world_non_homogeneous, *(x_direction.squeeze(0)), color=color)
         ax.quiver(*origin_world_non_homogeneous, *(y_direction.squeeze(0)), color=color)
         ax.quiver(*origin_world_non_homogeneous, *(z_direction.squeeze(0)), color=color)

@@ -49,67 +49,6 @@ def from_homogeneous(coords: jt.ArrayLike) -> jax.Array:
     return result
 
 
-def norm_eucl_3d(
-    points: jt.ArrayLike,
-    homogeneous: bool = True,
-    keepdims: bool = False,
-    add_batch_dimension: bool = False,
-) -> jax.Array:
-    """Compute the Euclidean distance between the origin and 3D points.
-
-    We always compute the norm over the second dimension (the coordinates).
-    In the homogeneous case, we handle both points (non-zero homogeneous weight) and direction vectors (zero weight).
-
-    @param Single or multiple 3D points in an array.
-    Shape: `(point_count, 4)`, `(point_count, 3)`, `(4,)`, or `(3,)`, depending on the other arguments.
-    When the homogeneous weight is zero, we assume a direction vector and ignore the weight.
-
-    @param homogeneous Whether the points are in homogeneous coordinates or not.
-    If True, we expect 4 coordinates. Otherwise, we expect 3.
-
-    @param keepdims If True, the output will have the same number of dimensions as the input and the dimension we
-    compute the norm over will have size 1. Otherwise, the dimension we compute the norm over will be squished.
-
-    @param add_batch_dimension If True, we expect a single point in a (3,)- or (4,)-sized array. Otherwise, expect
-    a `(point_count, 4)`- or `(point_count, 3)`-sized array of points.
-
-    @return The norm for every point or vector in the input. Shape: either (point_count,) or (point_count, 1), depending
-    on the `keepdim` parameter.
-    """
-    points = jnp.array(points, float)
-    if add_batch_dimension and points.ndim != 1:
-        raise ValueError(
-            f"expected a single point or vector without a batch axis, got shape {points.shape}"
-        )
-    if not add_batch_dimension and points.ndim != 2:
-        raise ValueError(
-            f"expected points array to have two dimensions, got shape {points.shape}"
-        )
-
-    if add_batch_dimension:
-        points = jnp.expand_dims(points, 0)
-        assert points.ndim == 2
-
-    if homogeneous:
-        if points.shape[1] != 4:
-            raise ValueError(
-                f"expected points array to have shape (N, 4) because homogeneous=True, got shape {points.shape}"
-            )
-        points_non_homogeneous = jnp.where(
-            points[:, 3:4] == 0,
-            points[:, :3],  # vectors have homogeneous weight zero
-            points[:, :3] / points[:, 3:4],  # divide point coords by weight
-        )
-    else:
-        if points.shape[1] != 3:
-            raise ValueError(
-                f"expected points array to have shape (N, 3) because homogeneous=False, got shape {points.shape}"
-            )
-        points_non_homogeneous = points
-    # this is the step that squashes the norm dimension, or not
-    norms = jnp.linalg.norm(points_non_homogeneous, ord=2, axis=1, keepdims=keepdims)
-    return norms
-
 
 class CameraParams:
     """Parameters of a pinhole camera."""
@@ -152,8 +91,8 @@ class CameraParams:
         )
         camera_points_inhomogeneous = image_points_homogeneous @ self._image_to_camera.T
         # normalize to unit vectors
-        camera_points_inhomogeneous = camera_points_inhomogeneous / norm_eucl_3d(
-            camera_points_inhomogeneous, homogeneous=False, keepdims=True
+        camera_points_inhomogeneous = camera_points_inhomogeneous / jnp.linalg.norm(
+            camera_points_inhomogeneous, axis=1, keepdims=True
         )
         # add homogeneous weight of zero (direction vectors, not points)
         camera_points_homogeneous = jnp.concat(
@@ -182,7 +121,7 @@ class CameraParams:
         assert jnp.all(world_directions[:, 3] == 0)
         world_directions = world_directions.at[:, :3].set(
             world_directions[:, :3]
-            / norm_eucl_3d(world_directions, homogeneous=True, keepdims=True)
+            / jnp.linalg.norm(world_directions[:, :3], axis=1, keepdims=True)
         )
         return world_directions
 
@@ -249,10 +188,10 @@ def extrinsic_matrix_from_pose(
     # compute inhomogeneous, unit vectors for all axes
     viewing_direction_world = (
         viewing_direction_world
-        / norm_eucl_3d(viewing_direction_world, add_batch_dimension=True)
+        / jnp.linalg.norm(viewing_direction_world[:3])
     )[:3]
     up_direction_world = (
-        up_direction_world / norm_eucl_3d(up_direction_world, add_batch_dimension=True)
+        up_direction_world / jnp.linalg.norm(up_direction_world[:3])
     )[:3]
     if 1e-3 < abs((viewing_direction_world @ up_direction_world).item()):
         raise ValueError(
@@ -262,7 +201,7 @@ def extrinsic_matrix_from_pose(
 
     sideways_direction = jnp.cross(viewing_direction_world, up_direction_world)
     assert jnp.allclose(
-        norm_eucl_3d(sideways_direction, homogeneous=False, add_batch_dimension=True),
+        jnp.linalg.norm(sideways_direction),
         1.0,
     ), (
         f"sideways direction {sideways_direction.tolist()} does not have Euclidean norm 1.0"
@@ -428,8 +367,8 @@ def sample_regular_positions_along_rays(
     result = jnp.zeros([ray_count, pos_per_ray, 3], dtype=float)
     ray_origins = rays[:, :3]
     ray_directions = rays[:, 3:6]
-    norm_ray_directions = ray_directions / norm_eucl_3d(
-        ray_directions, homogeneous=False, keepdims=True
+    norm_ray_directions = ray_directions / jnp.linalg.norm(
+        ray_directions, axis=1, keepdims=True
     )
     assert ray_origins.shape[-1] == 3
     assert norm_ray_directions.shape[-1] == 3
@@ -462,8 +401,8 @@ def sample_coarse_mlp_inputs(
     rays = jnp.array(rays)
     ray_origins = rays[:, :3]
     ray_directions = rays[:, 3:6]
-    norm_ray_directions = ray_directions / norm_eucl_3d(
-        ray_directions, homogeneous=False, keepdims=True
+    norm_ray_directions = ray_directions / jnp.linalg.norm(
+        ray_directions, axis=1, keepdims=True
     )
 
     # sample points on rays

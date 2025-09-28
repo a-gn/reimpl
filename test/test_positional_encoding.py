@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import pytest
 
-from reimpl_a_gn.threed.nerf import compute_nerf_positional_encoding
+from reimpl_a_gn.threed.rendering import compute_nerf_positional_encoding
 
 
 class TestPositionalEncoding:
