@@ -4,3 +4,6 @@
 
 - [x] Write rendering pieces
 - [x] Fix NaNs and INFs in output of piecewise-uniform fine position sampling
+- [x] Predict and render in batches
+
+## Training

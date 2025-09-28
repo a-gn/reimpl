@@ -231,8 +231,10 @@ class TestPiecewiseUniform:
                 (lower_bound <= samples[0]) & (samples[0] < upper_bound)
             ).item()
             interval_ratio = value_count_inside_interval / SAMPLE_COUNT
-            interval_probability = interval_probabilities[0, interval_index].item()
+            interval_probability = interval_probabilities[0, interval_index].item() / (
+                upper_bound - lower_bound
+            )
             print(
                 f"interval {interval_index} has size ratio {interval_ratio} and probability {interval_probability}"
             )
-            assert abs(interval_ratio - interval_probability < 1e-2)
+            assert abs(interval_ratio - interval_probability) < 1e-2
