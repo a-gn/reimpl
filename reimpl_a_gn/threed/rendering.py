@@ -670,7 +670,6 @@ def render_image(
             fine_network=fine_network,
         )
 
-    print(f"scanning through {batches.shape[0]} batches...")
     _, ray_batch_renders = scan(render_single_batch, 0, batches)
     # collapse batch axis
     ray_batch_renders = ray_batch_renders.reshape(-1, 3)
