@@ -3,14 +3,15 @@
 Will only output noise as of now since I don't train anything.
 """
 
-from functools import partial
 from pathlib import Path
 
 import jax
 import jax.numpy as jnp
+import jax.typing as jt
 import kagglehub
 import matplotlib.pyplot as plt
 from flax.nnx import Rngs
+from jax.lax import scan
 from jax.random import key, split
 
 from reimpl_a_gn.dataset.synthetic_nerf_dataset import load_synthetic_nerf_dataset
@@ -47,19 +48,82 @@ def get_rays(image_height: int, image_width: int, camera: CameraParams):
     return pixel_coords, pixel_rays
 
 
-@partial(jax.jit, static_argnames=("camera", "coarse_network", "fine_network"))
-def render_single_image(
-    image: jnp.ndarray,
+def render_image(
+    image: jt.ArrayLike,
     camera: CameraParams,
+    rng_key: jax.Array,
+    coarse_network: CoarseMLP,
+    fine_network: FineMLP,
+    ray_batch_size: int,
+):
+    """Predict and render colors for all pixels in an image, batch by batch.
+
+    @param image RGB image with shape (height, width, 3).
+    @param ray_batch_size Divisor of (image.shape[0] * image.shape[1]). We will process batches of this number of rays.
+    """
+    image = jnp.array(image)
+    image_height, image_width, _ = image.shape
+
+    _, rays = get_rays(image_height, image_width, camera)
+    ray_count = rays.shape[0]
+
+    # batch all rays except a possible incomplete last batch
+    if ray_batch_size > rays.shape[0]:
+        print(
+            f"batch size {ray_batch_size} is larger than total ray count {rays.shape[0]}, we won't batch or pad"
+        )
+        batches = jnp.expand_dims(rays, 0)
+        remaining_rays = 0
+    elif ray_count % ray_batch_size == 0:
+        # clean split
+        batches = jnp.reshape(rays, (-1, ray_batch_size, 6))
+        remaining_rays = 0
+    else:
+        remaining_rays = ray_count % ray_batch_size
+        # create the first, complete batches
+        batches = jnp.reshape(rays[:-remaining_rays], (-1, ray_batch_size, 6))
+        # pad the last batch and append it
+        last_batch = jnp.concat(
+            [
+                rays[-remaining_rays:],
+                jnp.zeros((ray_batch_size - remaining_rays, 6)),
+            ],
+            axis=0,
+        )
+        last_batch = jnp.expand_dims(last_batch, 0)  # batch axis
+        batches = jnp.concat([batches, last_batch], axis=0)
+
+    split_rng_keys = jax.random.split(rng_key, batches.shape[0])
+
+    def render_single_batch(batch_index: int, ray_batch: jnp.ndarray):
+        return batch_index + 1, render_rays(
+            ray_batch,
+            rng_key=split_rng_keys[batch_index],
+            coarse_network=coarse_network,
+            fine_network=fine_network,
+        )
+
+    print(f"scanning through {batches.shape[0]} batches...")
+    _, ray_batch_renders = scan(render_single_batch, 0, batches)
+    # collapse batch axis
+    ray_batch_renders = ray_batch_renders.reshape(-1, 3)
+    # remove padding from last batch
+    if remaining_rays != 0:
+        ray_batch_renders = ray_batch_renders[: -ray_batch_size + remaining_rays]
+    # back to image shape
+    ray_batch_renders = ray_batch_renders.reshape(image.shape)
+    return ray_batch_renders
+
+
+def render_rays(
+    rays: jt.ArrayLike,
     rng_key: jnp.ndarray,
     coarse_network: CoarseMLP,
     fine_network: FineMLP,
     near_distance: float = 0.01,
     far_distance: float = 5,
 ):
-    image_height, image_width, _ = image.shape
-
-    _, rays = get_rays(image_height, image_width, camera)
+    rays = jnp.array(rays)
 
     # coarse MLP
 
@@ -119,9 +183,6 @@ def render_single_image(
     blended_colors_per_ray = blend_ray_features_with_nerf_paper_method(
         ray_features=blending_inputs
     )
-    blended_colors_per_ray = blended_colors_per_ray.reshape(
-        (image_height, image_width, 3)
-    )
     return blended_colors_per_ray
 
 
@@ -146,12 +207,13 @@ rng_key, rng_subkey = split(rng_key)
 fine_network = FineMLP(6 * 2 * 2, (64, 64), 4, rngs=Rngs(rng_subkey))
 del rng_subkey
 
-colors = render_single_image(
+colors = render_image(
     image=first_image,
     camera=first_camera,
     rng_key=rng_key,
     coarse_network=coarse_network,
     fine_network=fine_network,
+    ray_batch_size=2**16,
 )
 plt.imshow(colors)
 plt.show()

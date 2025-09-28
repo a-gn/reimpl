@@ -338,7 +338,7 @@ def sample_rays_towards_pixels(
     @param camera_params Pinhole camera parameters.
     @param points Pixel coordinates in the camera's image. Coordinates start in the upper-left corner.
     Shape: (point_count, 2) where the second axis is x, y.
-    @return Ray parameters, inhomogeneous. Shape: (point_count, 6). Third axis: x, y, z, dx, dy, dz.
+    @return Ray parameters, inhomogeneous. Shape: (point_count, 6). Last axis: x, y, z, dx, dy, dz.
     The origin of rays is always at the camera center (0, 0, 0) in camera coordinates.
     """
     points = jnp.array(points)
