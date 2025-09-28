@@ -1,3 +1,1 @@
-from .wrapper import load_synthetic_nerf_dataset
-
-__all__ = ["load_synthetic_nerf_dataset"]
+from .wrapper import get_flower_dataset, load_synthetic_nerf_dataset

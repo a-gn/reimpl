@@ -5,6 +5,7 @@ from pathlib import Path
 
 import jax
 import jax.numpy as jnp
+import kagglehub
 import numpy
 
 from reimpl_a_gn.threed.rendering import CameraParams
@@ -95,3 +96,13 @@ def load_synthetic_nerf_dataset(
         int(i_test),
         camera_params,
     )
+
+
+def get_flower_dataset():
+    """Download the dataset if needed, and return the path to the flower subfolder."""
+    dataset_path = (
+        Path(kagglehub.dataset_download("arenagrenade/llff-dataset-full"))
+        / "nerf_llff_data"
+        / "flower"
+    )
+    return load_synthetic_nerf_dataset(dataset_path)
