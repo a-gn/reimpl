@@ -186,11 +186,10 @@ def extrinsic_matrix_from_pose(
         )
 
     # compute inhomogeneous, unit vectors for all axes
-    viewing_direction_world = (
-        viewing_direction_world
-        / jnp.linalg.norm(viewing_direction_world[:3])
+    viewing_direction_world = jnp.array(
+        viewing_direction_world / jnp.linalg.norm(viewing_direction_world[:3])
     )[:3]
-    up_direction_world = (
+    up_direction_world = jnp.array(
         up_direction_world / jnp.linalg.norm(up_direction_world[:3])
     )[:3]
     if 1e-3 < abs((viewing_direction_world @ up_direction_world).item()):
