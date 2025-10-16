@@ -138,6 +138,18 @@ class CameraParams:
         return self.camera_to_image[1, 1]
 
 
+@jax.vmap
+def batch_image_to_world(
+    cameras: tuple[CameraParams, ...], point_batches: tuple[jnp.ndarray, ...]
+):
+    """Convert a batch of points from image coordinates (2D) to world coordinates (3D).
+
+    @param cameras Parameters of the camera for each batch.
+    @param point_batches One batch of 2D point coordinates per camera.
+    Shape: `(len(cameras)), batch_size, 2`
+    """
+
+
 def extrinsic_matrix_from_pose(
     camera_origin_world: jt.ArrayLike,
     viewing_direction_world: jt.ArrayLike,

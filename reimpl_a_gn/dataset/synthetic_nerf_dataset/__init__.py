@@ -1,1 +1,2 @@
+from .loader import SyntheticNeRFDatasetForTraining
 from .wrapper import get_flower_dataset, load_synthetic_nerf_dataset
