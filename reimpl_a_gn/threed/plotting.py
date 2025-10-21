@@ -4,15 +4,7 @@ import jax.numpy as jnp
 import jax.typing as jt
 import matplotlib.pyplot as plt
 
-
-def make_non_homogeneous(point: jt.ArrayLike):
-    """Convert homogeneous point to non-homogeneous coordinates.
-
-    @param point Homogeneous point. Shape: (4,). Last axis: x, y, z, w.
-    @return Non-homogeneous point. Shape: (3,). Order: x/w, y/w, z/w.
-    """
-    point = jnp.array(point)
-    return point[:3] / point[3]
+from reimpl_a_gn.threed.coord_utils import make_non_homogeneous
 
 
 def plot_cameras(

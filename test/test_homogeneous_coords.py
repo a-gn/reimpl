@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from reimpl_a_gn.threed.rendering import (
+from reimpl_a_gn.threed.coord_utils import (
     from_homogeneous,
     to_homogeneous_points,
     to_homogeneous_vectors,

@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-import reimpl_a_gn.threed.rendering as rendering
+import reimpl_a_gn.threed.coord_utils as coord_utils
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def flower_rays(
     first_flower_camera_matrices: tuple[jnp.ndarray, jnp.ndarray],
 ) -> jnp.ndarray:
     intrinsic_matrix, extrinsic_matrix = first_flower_camera_matrices
-    return rendering.compute_rays_in_world_frame(
+    return coord_utils.compute_rays_in_world_frame(
         intrinsic_matrix, extrinsic_matrix, (-3, 4), (-2, 2)
     )
 
@@ -38,7 +38,7 @@ def test_extrinsic_camera_from_valid_camera_params():
     up_direction = jnp.array([2.0, 1.0, 4.0, 0.0])
     camera_origin = jnp.array([4.0, 5.5, -12.2, 1.0])
 
-    extrinsic_matrix = rendering.extrinsic_matrix_from_pose(
+    extrinsic_matrix = coord_utils.extrinsic_matrix_from_pose(
         camera_origin, forward_direction, up_direction
     )
 
@@ -51,14 +51,14 @@ def test_extrinsic_camera_with_non_orthogonal_directions():
     camera_origin = jnp.array([4.0, 5.5, -12.2, 1.0])
 
     with pytest.raises(ValueError):
-        rendering.extrinsic_matrix_from_pose(
+        coord_utils.extrinsic_matrix_from_pose(
             camera_origin, forward_direction, up_direction
         )
 
 
 def test_sample_coarse_positions(flower_rays: jnp.ndarray):
     prng_key = jax.random.key(7)
-    actual_result = rendering.sample_coarse_mlp_inputs(
+    actual_result = coord_utils.sample_coarse_mlp_inputs(
         rays=flower_rays,
         near_distance=0.5,
         far_distance=5.0,
@@ -96,7 +96,7 @@ def test_compute_fine_sampling_distribution():
             )
         )
 
-    computed_distribution = rendering.compute_fine_sampling_distribution(
+    computed_distribution = coord_utils.compute_fine_sampling_distribution(
         densities, sampling_positions
     )
     print(f"computed:\n{computed_distribution}\nexpected:\n{expected_distribution}")
@@ -185,7 +185,7 @@ def test_blend_ray_features_with_nerf_paper_method(
     ray_features, expected_result, description, atol
 ):
     """Test the NeRF paper's volume rendering implementation."""
-    result = rendering.blend_ray_features_with_nerf_paper_method(ray_features)
+    result = coord_utils.blend_ray_features_with_nerf_paper_method(ray_features)
 
     # Always check shape
     assert result.shape == (1, 1, 3), f"Expected shape (1, 1, 3), got {result.shape}"

@@ -17,7 +17,13 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
 
         image_count, image_height, image_width, _ = self.all_data.images.shape
 
-        # choose pixel coordinates
+        # choose images (with replacement)
+        chosen_image_indices = randint(
+            image_choice_key, shape=(self.batch_size,), minval=0, maxval=image_count
+        )
+        del image_choice_key
+
+        # choose pixel coordinates for every image (same sizes)
         chosen_pixel_xy = uniform(
             coordinate_choice_key,
             shape=(self.batch_size, 2),
@@ -30,7 +36,20 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         )
         del coordinate_choice_key
 
-        chosen_image_indices = randint(
-            image_choice_key, shape=(self.batch_size,), minval=0, maxval=image_count
+        # compute ray direction vectors in camera frame
+        pixel_to_camera_transform = jnp.linalg.inv(self.all_data.intrinsic_matrix)
+        assert isinstance(
+            pixel_to_camera_transform, jnp.ndarray
+        ) and pixel_to_camera_transform.shape == (3, 3)
+        ray_directions_camera_frame = chosen_pixel_xy_hom @ pixel_to_camera_transform.T
+        # homogeneous weight should be zero for vectors
+        assert jnp.all(ray_directions_camera_frame[..., 3] == 0.0)
+
+        # to world frame
+        chosen_extrinsic_matrices = jnp.take_along_axis(
+            self.all_data.extrinsic_matrices, chosen_image_indices, axis=0
         )
-        del image_choice_key
+        camera_to_world_transforms = jnp.linalg.inv(chosen_extrinsic_matrices)
+        ray_directions_world_frame = (
+            ray_directions_camera_frame @ camera_to_world_transforms.T
+        )

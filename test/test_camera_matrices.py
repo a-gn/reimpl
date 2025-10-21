@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from reimpl_a_gn.threed.rendering import (
+from reimpl_a_gn.threed.coord_utils import (
     image_to_camera,
     image_to_world,
     intrinsic_matrix_from_params,
