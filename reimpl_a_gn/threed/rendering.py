@@ -49,105 +49,87 @@ def from_homogeneous(coords: jt.ArrayLike) -> jax.Array:
     return result
 
 
+def image_to_camera(
+    image_points: jt.ArrayLike, intrinsic_matrix: jt.ArrayLike
+) -> jax.Array:
+    """Compute direction of rays from camera origin to image points, in camera frame.
 
-class CameraParams:
-    """Parameters of a pinhole camera."""
-
-    def __init__(
-        self,
-        extrinsic_matrix: jt.ArrayLike,
-        intrinsic_matrix: jt.ArrayLike,
-    ):
-        """Initialize camera parameters.
-
-        @param extrinsic_matrix Extrinsic parameters, from world frame to camera frame. Shape: (4, 4).
-        @param intrinsic_matrix Intrinsic parameters, from camera frame to image coordinates. Shape: (3, 3).
-        """
-        self.world_to_camera: jax.Array = jnp.array(extrinsic_matrix)
-        if self.world_to_camera.shape != (4, 4):
-            raise ValueError(
-                f"Expected camera matrix to have shape (4, 4), got {self.world_to_camera.shape}"
-            )
-        self.camera_to_world: jax.Array = jnp.linalg.inv(self.world_to_camera)
-
-        self.camera_to_image: jax.Array = jnp.array(intrinsic_matrix)
-        if self.camera_to_image.shape != (3, 3):
-            raise ValueError(
-                f"Expected camera matrix to have shape (3, 3), got {self.camera_to_image.shape}"
-            )
-        self._image_to_camera: jax.Array = jnp.linalg.inv(self.camera_to_image)
-
-    def image_to_camera(self, image_points: jt.ArrayLike) -> jax.Array:
-        """Compute the direction of a ray from the camera origin to a point in the image, in the camera frame.
-
-        This is a function because we go through homogeneous coordinates, but the input coordinates are in pixels.
-
-        @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
-        @return Unit direction vector in the camera coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
-        """
-        image_points = jnp.array(image_points)
-        image_points_homogeneous = jnp.concatenate(
-            [image_points, jnp.ones((image_points.shape[0], 1))], axis=1
-        )
-        camera_points_inhomogeneous = image_points_homogeneous @ self._image_to_camera.T
-        # normalize to unit vectors
-        camera_points_inhomogeneous = camera_points_inhomogeneous / jnp.linalg.norm(
-            camera_points_inhomogeneous, axis=1, keepdims=True
-        )
-        # add homogeneous weight of zero (direction vectors, not points)
-        camera_points_homogeneous = jnp.concat(
-            [
-                camera_points_inhomogeneous,
-                jnp.zeros([camera_points_inhomogeneous.shape[0], 1]),
-            ],
-            axis=-1,
-        )
-        assert len(camera_points_homogeneous.shape) == 2
-        assert camera_points_homogeneous.shape[1] == 4
-        return camera_points_homogeneous
-
-    def image_to_world(self, image_points: jt.ArrayLike) -> jax.Array:
-        """Compute the direction of a ray from the camera origin to a point in the image, in the world frame.
-
-        This is a function because we go through homogeneous coordinates, but the input coordinates are in pixels.
-
-        @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
-        @return Unit direction vector in the world coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
-        """
-        # These are directions, they have homogeneous weight zero.
-        camera_directions = self.image_to_camera(image_points)
-        world_directions = camera_directions @ self.camera_to_world.T
-        # Normalize to unit vectors (homogeneous weight is zero, ignore it).
-        assert jnp.all(world_directions[:, 3] == 0)
-        world_directions = world_directions.at[:, :3].set(
-            world_directions[:, :3]
-            / jnp.linalg.norm(world_directions[:, :3], axis=1, keepdims=True)
-        )
-        return world_directions
-
-    @property
-    def fx(self):
-        """Focal length divided by the pixel size in x. Element [0, 0] in the intrinsic matrix."""
-
-        return self.camera_to_image[0, 0]
-
-    @property
-    def fy(self):
-        """Focal length divided by the pixel size in y. Element [1, 1] in the intrinsic matrix."""
-
-        return self.camera_to_image[1, 1]
-
-
-@jax.vmap
-def batch_image_to_world(
-    cameras: tuple[CameraParams, ...], point_batches: tuple[jnp.ndarray, ...]
-):
-    """Convert a batch of points from image coordinates (2D) to world coordinates (3D).
-
-    @param cameras Parameters of the camera for each batch.
-    @param point_batches One batch of 2D point coordinates per camera.
-    Shape: `(len(cameras)), batch_size, 2`
+    @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
+    @param intrinsic_matrix Intrinsic matrix from camera frame to image coordinates. Shape: (3, 3).
+    @return Unit direction vectors in camera coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
     """
+    image_points = jnp.array(image_points)
+    intrinsic_matrix = jnp.array(intrinsic_matrix)
+
+    if intrinsic_matrix.shape != (3, 3):
+        raise ValueError(
+            f"Expected intrinsic matrix to have shape (3, 3), got {intrinsic_matrix.shape}"
+        )
+
+    image_to_camera_matrix = jnp.linalg.inv(intrinsic_matrix)
+
+    # Convert to homogeneous coordinates
+    image_points_homogeneous = jnp.concatenate(
+        [image_points, jnp.ones((image_points.shape[0], 1))], axis=1
+    )
+
+    # Transform to camera coordinates
+    camera_points_inhomogeneous = image_points_homogeneous @ image_to_camera_matrix.T
+
+    # Normalize to unit vectors
+    camera_points_inhomogeneous = camera_points_inhomogeneous / jnp.linalg.norm(
+        camera_points_inhomogeneous, axis=1, keepdims=True
+    )
+
+    # Add homogeneous weight of zero (direction vectors, not points)
+    camera_points_homogeneous = jnp.concat(
+        [
+            camera_points_inhomogeneous,
+            jnp.zeros([camera_points_inhomogeneous.shape[0], 1]),
+        ],
+        axis=-1,
+    )
+
+    assert len(camera_points_homogeneous.shape) == 2
+    assert camera_points_homogeneous.shape[1] == 4
+    return camera_points_homogeneous
+
+
+def image_to_world(
+    image_points: jt.ArrayLike,
+    intrinsic_matrix: jt.ArrayLike,
+    extrinsic_matrix: jt.ArrayLike,
+) -> jax.Array:
+    """Compute direction of rays from camera origin to image points, in world frame.
+
+    @param image_points Image points, pixel coordinates. Shape: (point_count, 2). Last axis: x, y.
+    @param intrinsic_matrix Intrinsic matrix from camera frame to image coordinates. Shape: (3, 3).
+    @param extrinsic_matrix Extrinsic matrix from world frame to camera frame. Shape: (4, 4).
+    @return Unit direction vectors in world coordinate system. Shape: (point_count, 4). Last axis: x, y, z, 0.
+    """
+    extrinsic_matrix = jnp.array(extrinsic_matrix)
+
+    if extrinsic_matrix.shape != (4, 4):
+        raise ValueError(
+            f"Expected extrinsic matrix to have shape (4, 4), got {extrinsic_matrix.shape}"
+        )
+
+    camera_to_world = jnp.linalg.inv(extrinsic_matrix)
+
+    # Get directions in camera frame
+    camera_directions = image_to_camera(image_points, intrinsic_matrix)
+
+    # Transform to world frame
+    world_directions = camera_directions @ camera_to_world.T
+
+    # Normalize to unit vectors (homogeneous weight is zero, ignore it)
+    assert jnp.all(world_directions[:, 3] == 0)
+    world_directions = world_directions.at[:, :3].set(
+        world_directions[:, :3]
+        / jnp.linalg.norm(world_directions[:, :3], axis=1, keepdims=True)
+    )
+
+    return world_directions
 
 
 def extrinsic_matrix_from_pose(
@@ -287,13 +269,21 @@ def intrinsic_matrix_from_params(
 
 
 def compute_rays_in_world_frame(
-    camera: CameraParams, x_range: tuple[int, int], y_range: tuple[int, int]
+    intrinsic_matrix: jt.ArrayLike,
+    extrinsic_matrix: jt.ArrayLike,
+    x_range: tuple[int, int],
+    y_range: tuple[int, int],
 ):
     """Compute the origin and direction of rays from the camera origin to pixels in the image.
 
+    @param intrinsic_matrix Intrinsic matrix from camera frame to image coordinates. Shape: (3, 3).
+    @param extrinsic_matrix Extrinsic matrix from world frame to camera frame. Shape: (4, 4).
+    @param x_range Range of x pixel coordinates to generate rays for.
+    @param y_range Range of y pixel coordinates to generate rays for.
     @return ray directions and origins. Shape: (ray_count, 6). Second axis: (x, y, z, dx, dy, dz).
-
     """
+    extrinsic_matrix = jnp.array(extrinsic_matrix)
+    camera_to_world = jnp.linalg.inv(extrinsic_matrix)
 
     # compute rays in world frame
     ray_targets_x_image, ray_targets_y_image = jnp.meshgrid(
@@ -302,11 +292,11 @@ def compute_rays_in_world_frame(
     ray_targets_image = jnp.stack(
         [ray_targets_x_image, ray_targets_y_image], axis=-1
     ).reshape(-1, 2)
-    ray_directions_world_homo = camera.image_to_world(ray_targets_image)
-    # origin of rays is origin of camera
-    ray_origins_world_homo = (
-        jnp.array([[0.0, 0.0, 0.0, 1.0]]) @ camera.camera_to_world.T
+    ray_directions_world_homo = image_to_world(
+        ray_targets_image, intrinsic_matrix, extrinsic_matrix
     )
+    # origin of rays is origin of camera
+    ray_origins_world_homo = jnp.array([[0.0, 0.0, 0.0, 1.0]]) @ camera_to_world.T
     # same origin for all rays, concatenate needs axis 0 to have the same size as directions
     ray_origins_world_homo = jnp.repeat(
         ray_origins_world_homo, axis=0, repeats=ray_directions_world_homo.shape[0]
@@ -527,12 +517,12 @@ def compute_nerf_positional_encoding(
 
 
 def sample_rays_towards_pixels(
-    camera_params: CameraParams,
+    intrinsic_matrix: jt.ArrayLike,
     points: jt.ArrayLike,
 ) -> jax.Array:
     """Sample parameters of rays towards pixels in a pinhole camera.
 
-    @param camera_params Pinhole camera parameters.
+    @param intrinsic_matrix Intrinsic matrix from camera frame to image coordinates. Shape: (3, 3).
     @param points Pixel coordinates in the camera's image. Coordinates start in the upper-left corner.
     Shape: (point_count, 2) where the second axis is x, y.
     @return Ray parameters, inhomogeneous. Shape: (point_count, 6). Last axis: x, y, z, dx, dy, dz.
@@ -544,30 +534,38 @@ def sample_rays_towards_pixels(
     ray_coords = jnp.zeros((points.shape[0], 6), dtype=float)
     # origins are at zero (already set)
     # compute directions of rays (convert from homogeneous to inhomogeneous)
-    ray_directions_homo = camera_params.image_to_camera(points)
+    ray_directions_homo = image_to_camera(points, intrinsic_matrix)
     ray_directions = from_homogeneous(ray_directions_homo)
     ray_coords = ray_coords.at[:, 3:6].set(ray_directions)
     return ray_coords
 
 
-def get_rays(image_height: int, image_width: int, camera: CameraParams):
+def get_rays(image_height: int, image_width: int, intrinsic_matrix: jt.ArrayLike):
+    """Generate ray parameters for all pixels in an image.
+
+    @param image_height Number of rows of pixels in the image.
+    @param image_width Number of columns of pixels in the image.
+    @param intrinsic_matrix Intrinsic matrix from camera frame to image coordinates. Shape: (3, 3).
+    @return Tuple of (pixel_coords, pixel_rays) where pixel_coords has shape (height*width, 2)
+        and pixel_rays has shape (height*width, 6).
+    """
     pixel_xs, pixel_ys = jnp.meshgrid(
         jnp.arange(0, image_height), jnp.arange(0, image_width)
     )
     pixel_coords = jnp.stack([pixel_xs.flatten(), pixel_ys.flatten()], axis=1)
     assert pixel_coords.ndim == 2 and pixel_coords.shape[1] == 2
 
-    pixel_rays = sample_rays_towards_pixels(camera, pixel_coords)
+    pixel_rays = sample_rays_towards_pixels(intrinsic_matrix, pixel_coords)
     return pixel_coords, pixel_rays
 
 
 @partial(
     jax.jit,
-    static_argnames=["camera", "coarse_network", "fine_network", "ray_batch_size"],
+    static_argnames=["coarse_network", "fine_network", "ray_batch_size"],
 )
 def render_image(
     image: jt.ArrayLike,
-    camera: CameraParams,
+    intrinsic_matrix: jt.ArrayLike,
     rng_key: jax.Array,
     coarse_network: CoarseMLP,
     fine_network: FineMLP,
@@ -576,12 +574,17 @@ def render_image(
     """Predict and render colors for all pixels in an image, batch by batch.
 
     @param image RGB image with shape (height, width, 3).
+    @param intrinsic_matrix Intrinsic matrix from camera frame to image coordinates. Shape: (3, 3).
+    @param rng_key JAX random number generator key for stochastic sampling.
+    @param coarse_network Coarse MLP network for initial density prediction.
+    @param fine_network Fine MLP network for refined rendering.
     @param ray_batch_size Divisor of (image.shape[0] * image.shape[1]). We will process batches of this number of rays.
+    @return Rendered image with same shape as input image.
     """
     image = jnp.array(image)
     image_height, image_width, _ = image.shape
 
-    _, rays = get_rays(image_height, image_width, camera)
+    _, rays = get_rays(image_height, image_width, intrinsic_matrix)
     ray_count = rays.shape[0]
 
     # batch all rays except a possible incomplete last batch

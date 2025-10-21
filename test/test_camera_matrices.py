@@ -1,7 +1,8 @@
 import jax.numpy as jnp
 
 from reimpl_a_gn.threed.rendering import (
-    CameraParams,
+    image_to_camera,
+    image_to_world,
     intrinsic_matrix_from_params,
     sample_rays_towards_pixels,
 )
@@ -58,14 +59,12 @@ class TestCameraMatrices:
         assert intrinsic[0, 1] == skew
 
     def test_sample_rays_towards_pixels_basic(self):
-        # Create a simple camera setup
-        extrinsic = jnp.eye(4)
+        # Create intrinsic matrix
         intrinsic = intrinsic_matrix_from_params((500.0, 500.0), 480, 640)
-        camera = CameraParams(extrinsic, intrinsic)
 
         # Sample rays towards a few pixels
         pixels = jnp.array([[320.0, 240.0], [100.0, 100.0]])  # center and corner
-        rays = sample_rays_towards_pixels(camera, pixels)
+        rays = sample_rays_towards_pixels(intrinsic, pixels)
 
         # Check output shape
         assert rays.shape == (2, 6)
@@ -79,14 +78,12 @@ class TestCameraMatrices:
         assert jnp.allclose(norms, 1.0, atol=1e-6)
 
     def test_sample_rays_towards_center_pixel(self):
-        # Camera looking down the z-axis
-        extrinsic = jnp.eye(4)
+        # Create intrinsic matrix
         intrinsic = intrinsic_matrix_from_params((500.0, 500.0), 480, 640)
-        camera = CameraParams(extrinsic, intrinsic)
 
         # Ray towards center pixel should point down z-axis
         center_pixel = jnp.array([[320.0, 240.0]])
-        rays = sample_rays_towards_pixels(camera, center_pixel)
+        rays = sample_rays_towards_pixels(intrinsic, center_pixel)
 
         direction = rays[0, 3:6]
         # Should be approximately (0, 0, 1) - pointing down z-axis
@@ -95,14 +92,47 @@ class TestCameraMatrices:
         assert direction[2] > 0.9  # large positive z component
 
     def test_sample_rays_different_pixels_different_directions(self):
-        extrinsic = jnp.eye(4)
         intrinsic = intrinsic_matrix_from_params((500.0, 500.0), 480, 640)
-        camera = CameraParams(extrinsic, intrinsic)
 
         # Sample rays towards different pixels
         pixels = jnp.array([[0.0, 0.0], [640.0, 480.0]])  # corners
-        rays = sample_rays_towards_pixels(camera, pixels)
+        rays = sample_rays_towards_pixels(intrinsic, pixels)
 
         # Directions should be different
         dir1, dir2 = rays[0, 3:6], rays[1, 3:6]
         assert not jnp.allclose(dir1, dir2)
+
+    def test_image_to_camera_basic(self):
+        """Test image_to_camera utility function."""
+        intrinsic = intrinsic_matrix_from_params((500.0, 500.0), 480, 640)
+        pixels = jnp.array([[320.0, 240.0], [100.0, 100.0]])
+
+        camera_dirs = image_to_camera(pixels, intrinsic)
+
+        # Check output shape
+        assert camera_dirs.shape == (2, 4)
+
+        # Check that homogeneous weight is zero
+        assert jnp.all(camera_dirs[:, 3] == 0)
+
+        # Check that directions are unit vectors
+        norms = jnp.linalg.norm(camera_dirs[:, :3], axis=1)
+        assert jnp.allclose(norms, 1.0, atol=1e-6)
+
+    def test_image_to_world_basic(self):
+        """Test image_to_world utility function."""
+        intrinsic = intrinsic_matrix_from_params((500.0, 500.0), 480, 640)
+        extrinsic = jnp.eye(4)
+        pixels = jnp.array([[320.0, 240.0]])
+
+        world_dirs = image_to_world(pixels, intrinsic, extrinsic)
+
+        # Check output shape
+        assert world_dirs.shape == (1, 4)
+
+        # Check that homogeneous weight is zero
+        assert jnp.all(world_dirs[:, 3] == 0)
+
+        # Check that directions are unit vectors
+        norms = jnp.linalg.norm(world_dirs[:, :3], axis=1)
+        assert jnp.allclose(norms, 1.0, atol=1e-6)

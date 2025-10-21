@@ -2,23 +2,22 @@
 
 Originally written by Claude (claude-sonnet-4-5-20250929) on 2025/10/15
 """
+
 import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
 import pytest
 
 from reimpl_a_gn.threed.nerf import CoarseMLP, FineMLP
-from reimpl_a_gn.threed.rendering import CameraParams, render_image, render_rays
+from reimpl_a_gn.threed.rendering import render_image, render_rays
 
 
 @pytest.fixture
-def simple_camera() -> CameraParams:
-    """Simple camera at origin looking down +Z."""
-    extrinsic = jnp.eye(4, dtype=float)
-    intrinsic = jnp.array(
+def simple_camera_intrinsic() -> jnp.ndarray:
+    """Simple camera intrinsic matrix."""
+    return jnp.array(
         [[50.0, 0.0, 25.0], [0.0, 50.0, 25.0], [0.0, 0.0, 1.0]], dtype=float
     )
-    return CameraParams(extrinsic_matrix=extrinsic, intrinsic_matrix=intrinsic)
 
 
 @pytest.fixture
@@ -124,7 +123,9 @@ class TestRenderRays:
         # Results should be identical
         assert jnp.allclose(result1, result2, atol=1e-6)
 
-    def test_near_far_distance_parameters(self, tiny_networks: tuple[CoarseMLP, FineMLP]):
+    def test_near_far_distance_parameters(
+        self, tiny_networks: tuple[CoarseMLP, FineMLP]
+    ):
         """Test that near_distance and far_distance parameters affect results."""
         coarse, fine = tiny_networks
         rays = jnp.array([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
@@ -157,13 +158,17 @@ class TestRenderRays:
         rng_key = jax.random.key(0)
 
         for batch_size in batch_sizes:
-            rays = jnp.tile(jnp.array([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]), (batch_size, 1))
+            rays = jnp.tile(
+                jnp.array([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]), (batch_size, 1)
+            )
             result = render_rays(
                 rays, rng_key=rng_key, coarse_network=coarse, fine_network=fine
             )
             assert result.shape == (batch_size, 3)
 
-    def test_normalized_ray_directions_work(self, tiny_networks: tuple[CoarseMLP, FineMLP]):
+    def test_normalized_ray_directions_work(
+        self, tiny_networks: tuple[CoarseMLP, FineMLP]
+    ):
         """Test that normalized ray directions work correctly."""
         coarse, fine = tiny_networks
         # Ray with non-unit direction
@@ -178,7 +183,9 @@ class TestRenderRays:
         assert result.shape == (1, 3)
         assert jnp.all(jnp.isfinite(result))
 
-    def test_rays_from_different_origins(self, tiny_networks: tuple[CoarseMLP, FineMLP]):
+    def test_rays_from_different_origins(
+        self, tiny_networks: tuple[CoarseMLP, FineMLP]
+    ):
         """Test rays from different origin points."""
         coarse, fine = tiny_networks
         rays = jnp.array(
@@ -203,7 +210,9 @@ class TestRenderImage:
     """Test render_image() function."""
 
     def test_output_shape_matches_input_image(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test that output image has same shape as input."""
         coarse, fine = tiny_networks
@@ -212,17 +221,21 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
             ray_batch_size=6,
         )
 
-        assert result.shape == image.shape, f"Expected {image.shape}, got {result.shape}"
+        assert result.shape == image.shape, (
+            f"Expected {image.shape}, got {result.shape}"
+        )
 
     def test_output_values_are_finite(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test that output pixel values are finite (no NaN or Inf)."""
         coarse, fine = tiny_networks
@@ -231,17 +244,19 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
             ray_batch_size=8,
         )
 
-        assert jnp.all(jnp.isfinite(result)), f"Found non-finite values in result"
+        assert jnp.all(jnp.isfinite(result)), "Found non-finite values in result"
 
     def test_ray_batch_size_divides_evenly(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test with ray_batch_size that divides total rays evenly."""
         coarse, fine = tiny_networks
@@ -250,7 +265,7 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -260,7 +275,9 @@ class TestRenderImage:
         assert result.shape == (6, 6, 3)
 
     def test_ray_batch_size_does_not_divide_evenly(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test with ray_batch_size that doesn't divide total rays evenly."""
         coarse, fine = tiny_networks
@@ -269,7 +286,7 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -281,7 +298,9 @@ class TestRenderImage:
         assert not jnp.any(jnp.isnan(result))
 
     def test_ray_batch_size_larger_than_total(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test with ray_batch_size larger than total ray count."""
         coarse, fine = tiny_networks
@@ -290,7 +309,7 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -301,7 +320,9 @@ class TestRenderImage:
         assert not jnp.any(jnp.isnan(result))
 
     def test_ray_batch_size_one(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test with ray_batch_size=1 (process one ray at a time)."""
         coarse, fine = tiny_networks
@@ -310,7 +331,7 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -320,7 +341,9 @@ class TestRenderImage:
         assert result.shape == (3, 4, 3)
 
     def test_small_image_renders_correctly(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test rendering very small images (edge case)."""
         coarse, fine = tiny_networks
@@ -329,7 +352,7 @@ class TestRenderImage:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -340,7 +363,9 @@ class TestRenderImage:
         assert jnp.all(jnp.isfinite(result))
 
     def test_different_rng_keys_produce_different_images(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test that different random keys produce different results."""
         coarse, fine = tiny_networks
@@ -348,7 +373,7 @@ class TestRenderImage:
 
         result1 = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=jax.random.key(0),
             coarse_network=coarse,
             fine_network=fine,
@@ -356,7 +381,7 @@ class TestRenderImage:
         )
         result2 = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=jax.random.key(1),
             coarse_network=coarse,
             fine_network=fine,
@@ -366,7 +391,9 @@ class TestRenderImage:
         assert not jnp.allclose(result1, result2, atol=1e-6)
 
     def test_same_rng_key_produces_deterministic_results(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test that same random key produces deterministic results."""
         coarse, fine = tiny_networks
@@ -375,7 +402,7 @@ class TestRenderImage:
 
         result1 = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -383,7 +410,7 @@ class TestRenderImage:
         )
         result2 = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -393,7 +420,9 @@ class TestRenderImage:
         assert jnp.allclose(result1, result2, atol=1e-6)
 
     def test_rectangular_images_various_sizes(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test rendering rectangular images of various sizes."""
         coarse, fine = tiny_networks
@@ -410,7 +439,7 @@ class TestRenderImage:
             image = jnp.zeros((height, width, 3), dtype=float)
             result = render_image(
                 image,
-                camera=simple_camera,
+                intrinsic_matrix=simple_camera_intrinsic,
                 rng_key=rng_key,
                 coarse_network=coarse,
                 fine_network=fine,
@@ -424,7 +453,9 @@ class TestRenderIntegration:
     """Integration tests for render_rays and render_image working together."""
 
     def test_render_image_uses_render_rays_internally(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test that render_image correctly uses render_rays for all pixels."""
         coarse, fine = tiny_networks
@@ -434,7 +465,7 @@ class TestRenderIntegration:
 
         result = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -447,7 +478,9 @@ class TestRenderIntegration:
         assert not jnp.any(jnp.isinf(result))
 
     def test_consistent_results_across_batch_sizes(
-        self, simple_camera: CameraParams, tiny_networks: tuple[CoarseMLP, FineMLP]
+        self,
+        simple_camera_intrinsic: jnp.ndarray,
+        tiny_networks: tuple[CoarseMLP, FineMLP],
     ):
         """Test that different batch sizes produce similar results (accounting for RNG differences)."""
         coarse, fine = tiny_networks
@@ -458,7 +491,7 @@ class TestRenderIntegration:
         # exact equality. This test just verifies both complete successfully.
         result_batch_1 = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,
@@ -466,7 +499,7 @@ class TestRenderIntegration:
         )
         result_batch_16 = render_image(
             image,
-            camera=simple_camera,
+            intrinsic_matrix=simple_camera_intrinsic,
             rng_key=rng_key,
             coarse_network=coarse,
             fine_network=fine,

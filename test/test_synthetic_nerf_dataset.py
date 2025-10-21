@@ -13,7 +13,6 @@ from reimpl_a_gn.dataset.synthetic_nerf_dataset.loader import (
     SyntheticNeRFDatasetForTraining,
 )
 from reimpl_a_gn.dataset.synthetic_nerf_dataset.wrapper import SyntheticNeRFData
-from reimpl_a_gn.threed.rendering import CameraParams
 
 
 class MockRayAndColorDataset(RayAndColorDataset):
@@ -33,21 +32,15 @@ class MockRayAndColorDataset(RayAndColorDataset):
         batch_size = self.batch_size
         rays = jnp.ones((batch_size, 6))
         colors = jnp.ones((batch_size, 3))
-        cameras = [create_test_camera_params() for _ in range(batch_size)]
+        extrinsic_matrices = jnp.stack([jnp.eye(4) for _ in range(batch_size)])
         dataset_info = [{"mock": f"sample_{i}"} for i in range(batch_size)]
 
         return NeRFTrainingSamples(
-            rays=rays, colors=colors, cameras=cameras, dataset_info=dataset_info
+            rays=rays,
+            colors=colors,
+            extrinsic_matrices=extrinsic_matrices,
+            dataset_info=dataset_info,
         )
-
-
-def create_test_camera_params() -> CameraParams:
-    """Create a test CameraParams instance."""
-    extrinsic_matrix = jnp.eye(4)
-    intrinsic_matrix = jnp.array(
-        [[100.0, 0.0, 50.0], [0.0, 100.0, 50.0], [0.0, 0.0, 1.0]]
-    )
-    return CameraParams(extrinsic_matrix, intrinsic_matrix)
 
 
 @pytest.fixture
@@ -66,10 +59,15 @@ def test_synthetic_nerf_data():
         [
             jnp.array(
                 [
-                    [1, 0, 0, i],  # x translation varies by image
-                    [0, 1, 0, 0],  # y translation constant
-                    [0, 0, 1, 0],  # z translation constant
-                    [height, width, 100.0 + i * 10],  # varying focal length
+                    [1.0, 0.0, 0.0, float(i)],  # x translation varies by image
+                    [0.0, 1.0, 0.0, 0.0],  # y translation constant
+                    [0.0, 0.0, 1.0, 0.0],  # z translation constant
+                    [
+                        float(height),
+                        float(width),
+                        100.0 + i * 10,
+                        0.0,
+                    ],  # last column: h, w, focal, dummy
                 ]
             ).T
             for i in range(image_count)
@@ -85,21 +83,23 @@ def test_synthetic_nerf_data():
     # Test image index (must be less than image_count)
     i_test = 0
 
-    # Create camera parameters
-    cameras = []
-    for i in range(image_count):
-        extrinsic_matrix = jnp.eye(4)
-        extrinsic_matrix = extrinsic_matrix.at[0, 3].set(-i)  # move camera in x
+    # Create intrinsic matrix (shared for all cameras)
+    focal_length = 100.0
+    intrinsic_matrix = jnp.array(
+        [
+            [focal_length, 0.0, width / 2],
+            [0.0, focal_length, height / 2],
+            [0.0, 0.0, 1.0],
+        ]
+    )
 
-        focal_length = 100.0 + i * 10
-        intrinsic_matrix = jnp.array(
-            [
-                [focal_length, 0.0, width / 2],
-                [0.0, focal_length, height / 2],
-                [0.0, 0.0, 1.0],
-            ]
-        )
-        cameras.append(CameraParams(extrinsic_matrix, intrinsic_matrix))
+    # Create extrinsic matrices (world-to-camera)
+    extrinsic_matrices = jnp.stack(
+        [
+            jnp.eye(4).at[0, 3].set(-i)  # move camera in x
+            for i in range(image_count)
+        ]
+    )
 
     return SyntheticNeRFData(
         images=images,
@@ -107,7 +107,8 @@ def test_synthetic_nerf_data():
         bds=bds,
         render_poses=render_poses,
         i_test=i_test,
-        cameras=cameras,
+        intrinsic_matrix=intrinsic_matrix,
+        extrinsic_matrices=extrinsic_matrices,
     )
 
 
@@ -202,12 +203,8 @@ class TestRayAndColorDataset:
         # Check dimensions
         assert batch.rays.shape == (batch_size, 6)
         assert batch.colors.shape == (batch_size, 3)
-        assert len(batch.cameras) == batch_size
+        assert batch.extrinsic_matrices.shape == (batch_size, 4, 4)
         assert len(batch.dataset_info) == batch_size
-
-        # Check that cameras are CameraParams instances
-        for camera in batch.cameras:
-            assert isinstance(camera, CameraParams)
 
     def test_multiple_iterations(self):
         """Test that the iterator can generate multiple batches without stopping."""
@@ -248,7 +245,7 @@ class TestSyntheticNeRFDatasetForTraining:
         # Check that all arrays have the correct batch dimension
         assert batch.rays.shape == (expected_batch_size, 6)
         assert batch.colors.shape == (expected_batch_size, 3)
-        assert len(batch.cameras) == expected_batch_size
+        assert batch.extrinsic_matrices.shape == (expected_batch_size, 4, 4)
         assert len(batch.dataset_info) == expected_batch_size
 
         # Check data types
@@ -271,7 +268,9 @@ class TestSyntheticNeRFDatasetForTraining:
         # Check that ray directions (last 3 components) are unit vectors
         ray_directions = batch.rays[:, 3:6]
         direction_norms = jnp.linalg.norm(ray_directions, axis=1)
-        assert jnp.allclose(direction_norms, 1.0, rtol=1e-5), "Ray directions should be unit vectors"
+        assert jnp.allclose(direction_norms, 1.0, rtol=1e-5), (
+            "Ray directions should be unit vectors"
+        )
 
     def test_dataset_info_contains_valid_image_indices(self, test_dataset):
         """Test that dataset info contains valid image indices."""
@@ -301,23 +300,18 @@ class TestSyntheticNeRFDatasetForTraining:
         colors_different = not jnp.allclose(batch1.colors, batch2.colors)
 
         # At least one should be different (with very high probability)
-        assert rays_different or colors_different, "Different RNG keys should produce different samples"
+        assert rays_different or colors_different, (
+            "Different RNG keys should produce different samples"
+        )
 
-    def test_camera_count_matches_batch_size(self, test_dataset):
-        """Test that the number of returned cameras matches batch size."""
+    def test_extrinsic_matrices_count_matches_batch_size(self, test_dataset):
+        """Test that the number of returned extrinsic matrices matches batch size."""
         rng_key = jax.random.PRNGKey(707)
 
         batch = test_dataset._get_batch_of_rays(rng_key)
 
-        # Check that we get the correct number of cameras
-        assert len(batch.cameras) == test_dataset.batch_size
-
-        # Check that all cameras are valid CameraParams instances
-        for camera in batch.cameras:
-            assert isinstance(camera, CameraParams)
-            # Check that camera matrices have the right shape
-            assert camera.world_to_camera.shape == (4, 4)
-            assert camera.camera_to_image.shape == (3, 3)
+        # Check that we get the correct number of extrinsic matrices
+        assert batch.extrinsic_matrices.shape == (test_dataset.batch_size, 4, 4)
 
     def test_deterministic_behavior_with_same_key(self, test_dataset):
         """Test that the same RNG key produces the same results."""
@@ -327,8 +321,12 @@ class TestSyntheticNeRFDatasetForTraining:
         batch2 = test_dataset._get_batch_of_rays(rng_key)
 
         # Same RNG key should produce identical results
-        assert jnp.allclose(batch1.rays, batch2.rays), "Same RNG key should produce identical rays"
-        assert jnp.allclose(batch1.colors, batch2.colors), "Same RNG key should produce identical colors"
+        assert jnp.allclose(batch1.rays, batch2.rays), (
+            "Same RNG key should produce identical rays"
+        )
+        assert jnp.allclose(batch1.colors, batch2.colors), (
+            "Same RNG key should produce identical colors"
+        )
 
         # Dataset info should also be identical
         assert len(batch1.dataset_info) == len(batch2.dataset_info)
@@ -353,8 +351,9 @@ class TestSyntheticNeRFDatasetForTraining:
                 expected_color = jnp.array([expected_color_value] * 3)  # RGB
 
                 # The sampled color should match the expected value for that image
-                assert jnp.allclose(sampled_color, expected_color, rtol=1e-6), \
+                assert jnp.allclose(sampled_color, expected_color, rtol=1e-6), (
                     f"Color mismatch: got {sampled_color}, expected {expected_color} for image {image_index}"
+                )
 
     def test_ray_origins_in_camera_coordinate_system(self, test_dataset):
         """Test that ray origins are correctly positioned relative to camera."""
@@ -366,26 +365,28 @@ class TestSyntheticNeRFDatasetForTraining:
         # The rays are in world coordinates, so origins should be the camera positions
         for i in range(test_dataset.batch_size):
             ray_origin = batch.rays[i, :3]  # First 3 components are origin
-            camera = batch.cameras[i]
+            extrinsic_matrix = batch.extrinsic_matrices[i]
+            camera_to_world = jnp.linalg.inv(extrinsic_matrix)
 
             # Camera position in world coordinates is the translation part of camera_to_world
-            expected_origin = camera.camera_to_world[:3, 3]
+            expected_origin = camera_to_world[:3, 3]
 
-            assert jnp.allclose(ray_origin, expected_origin, rtol=1e-5), \
+            assert jnp.allclose(ray_origin, expected_origin, rtol=1e-5), (
                 f"Ray origin {ray_origin} doesn't match camera position {expected_origin}"
+            )
 
-    def test_cameras_are_from_dataset(self, test_dataset):
-        """Test that returned cameras are from the original dataset."""
+    def test_extrinsic_matrices_are_from_dataset(self, test_dataset):
+        """Test that returned extrinsic matrices are from the original dataset."""
         rng_key = jax.random.PRNGKey(1111)
 
         batch = test_dataset._get_batch_of_rays(rng_key)
 
-        # Each camera in the batch should be one of the cameras from the dataset
-        dataset_cameras = test_dataset.all_data.cameras
-        for i, batch_camera in enumerate(batch.cameras):
+        # Each extrinsic matrix in the batch should be one of the matrices from the dataset
+        dataset_extrinsics = test_dataset.all_data.extrinsic_matrices
+        for i in range(test_dataset.batch_size):
             image_index = batch.dataset_info[i]["image_index"]
-            expected_camera = dataset_cameras[image_index]
+            batch_extrinsic = batch.extrinsic_matrices[i]
+            expected_extrinsic = dataset_extrinsics[image_index]
 
-            # The camera should be the same object or have identical matrices
-            assert jnp.allclose(batch_camera.world_to_camera, expected_camera.world_to_camera)
-            assert jnp.allclose(batch_camera.camera_to_image, expected_camera.camera_to_image)
+            # The matrices should be identical
+            assert jnp.allclose(batch_extrinsic, expected_extrinsic)

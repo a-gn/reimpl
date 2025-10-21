@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from jax import Array
 from jax.random import split
 
-from reimpl_a_gn.threed.rendering import CameraParams
-
 
 @dataclass
 class NeRFTrainingSamples:
@@ -15,8 +13,8 @@ class NeRFTrainingSamples:
     """Ray coordinates in world frame. Dimensions: (batch, 6). Last axis: (x, y, z, dx, dy, dz). DType: float."""
     colors: Array
     """Ground truth colors for all rays. Shape: (batch, 3). Last axis: RGB. DType: float. Range: [0, 1]."""
-    cameras: tuple[CameraParams, ...]
-    """Parameters of the cameras corresponding to all rays."""
+    extrinsic_matrices: Array
+    """Extrinsic matrices (world to camera) for cameras corresponding to all rays. Shape: (batch, 4, 4)."""
     dataset_info: list[dict[str, str]] | None
     """Source-specific information that can be added to e.g. find the data the samples come from."""
 

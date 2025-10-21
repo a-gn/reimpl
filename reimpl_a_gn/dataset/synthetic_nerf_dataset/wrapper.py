@@ -6,9 +6,6 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import kagglehub
-import numpy
-
-from reimpl_a_gn.threed.rendering import CameraParams
 
 from ._original_code import load_llff_data
 
@@ -29,18 +26,23 @@ class SyntheticNeRFData:
     """
     i_test: int
     """Index of the test image. Not supposed to be used in training."""
-    cameras: list[CameraParams]
-    """Camera parameters from `poses`."""
+    intrinsic_matrix: jax.Array
+    """Shared intrinsic matrix for all cameras. Shape: (3, 3)."""
+    extrinsic_matrices: jax.Array
+    """Extrinsic matrices (world to camera) for all images. Shape: (image_count, 4, 4)."""
 
 
 def _get_camera_parameters(poses, imgs):
     """Extract the extrinsic and intrinsic parameters of all cameras from the Synthetic NeRF dataset.
 
-    Ignore camera distortion. Assue a pinhole model.
+    Ignore camera distortion. Assume a pinhole model.
 
-    Thanks Claude Sonnet 3.5.
+    @param poses Camera poses array from dataset. Shape: (image_count, 3, 5).
+    @param imgs Images array from dataset.
+    @return Tuple of (extrinsic_matrices, intrinsic_matrix) where extrinsic_matrices has shape
+        (image_count, 4, 4) and intrinsic_matrix has shape (3, 3).
     """
-    # Extrinsic matrix (camera-to-world transform)
+    # Camera-to-world transform
     c2w = poses[:, :3, :4]  # Shape: (N, 3, 4) where N is the number of images
     new_homogeneous_rows = jnp.repeat(
         jnp.array([[[0, 0, 0, 1]]]), repeats=c2w.shape[0], axis=0
@@ -50,6 +52,9 @@ def _get_camera_parameters(poses, imgs):
         axis=1,
     )
 
+    # Compute extrinsic matrices (world-to-camera, inverse of c2w)
+    extrinsic_matrices = jnp.linalg.inv(c2w)
+
     # Intrinsic matrix
     H, W = imgs[0].shape[:2]  # Image height and width
     focal = poses[
@@ -58,7 +63,7 @@ def _get_camera_parameters(poses, imgs):
 
     intrinsic_matrix = jnp.array([[focal, 0, W / 2], [0, focal, H / 2], [0, 0, 1]])
 
-    return jnp.array(c2w), intrinsic_matrix
+    return extrinsic_matrices, intrinsic_matrix
 
 
 def load_synthetic_nerf_dataset(
@@ -83,18 +88,16 @@ def load_synthetic_nerf_dataset(
         spherify=spherify,
         path_zflat=path_zflat,
     )
-    camera_to_world_matrices, intrinsic_matrix = _get_camera_parameters(poses, images)
-    camera_params: list[CameraParams] = []
-    for camera_to_world in camera_to_world_matrices:
-        extrinsic_matrix = jnp.array(numpy.linalg.inv(camera_to_world[:, :4]))
-        camera_params.append(CameraParams(extrinsic_matrix, intrinsic_matrix))
+    extrinsic_matrices, intrinsic_matrix = _get_camera_parameters(poses, images)
+
     return SyntheticNeRFData(
         jnp.array(images),
         jnp.array(poses),
         jnp.array(bds),
         jnp.array(render_poses),
         int(i_test),
-        camera_params,
+        intrinsic_matrix,
+        extrinsic_matrices,
     )
 
 

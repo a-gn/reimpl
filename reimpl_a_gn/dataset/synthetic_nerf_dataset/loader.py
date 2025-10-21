@@ -1,12 +1,9 @@
 """This module implements classes that load training batches from a Synthetic NeRF Dataset instance."""
 
-import json
-
 import jax.numpy as jnp
 from jax import Array
 from jax.random import randint, split, uniform
 
-from ...threed.rendering import sample_rays_towards_pixels
 from ..common import NeRFTrainingSamples, RayAndColorDataset
 from .wrapper import SyntheticNeRFData
 

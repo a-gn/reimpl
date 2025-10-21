@@ -6,8 +6,8 @@ import reimpl_a_gn.threed.rendering as rendering
 
 
 @pytest.fixture
-def first_flower_camera() -> rendering.CameraParams:
-    """First camera from the flowers dataset."""
+def first_flower_camera_matrices() -> tuple[jnp.ndarray, jnp.ndarray]:
+    """First camera from the flowers dataset - returns (intrinsic, extrinsic) matrices."""
     extrinsic_matrix = jnp.array(
         [
             [0.99982196, 0.01527655, -0.01106967, 0.33459657],
@@ -20,14 +20,17 @@ def first_flower_camera() -> rendering.CameraParams:
     intrinsic_matrix = jnp.array(
         [[446.88232, 0.0, 252.0], [0.0, 446.88232, 189.0], [0.0, 0.0, 1.0]], dtype=float
     )
-    return rendering.CameraParams(
-        extrinsic_matrix=extrinsic_matrix, intrinsic_matrix=intrinsic_matrix
-    )
+    return intrinsic_matrix, extrinsic_matrix
 
 
 @pytest.fixture
-def flower_rays(first_flower_camera: rendering.CameraParams) -> jnp.ndarray:
-    return rendering.compute_rays_in_world_frame(first_flower_camera, (-3, 4), (-2, 2))
+def flower_rays(
+    first_flower_camera_matrices: tuple[jnp.ndarray, jnp.ndarray],
+) -> jnp.ndarray:
+    intrinsic_matrix, extrinsic_matrix = first_flower_camera_matrices
+    return rendering.compute_rays_in_world_frame(
+        intrinsic_matrix, extrinsic_matrix, (-3, 4), (-2, 2)
+    )
 
 
 def test_extrinsic_camera_from_valid_camera_params():
@@ -64,6 +67,7 @@ def test_sample_coarse_positions(flower_rays: jnp.ndarray):
     )
     # Verify the output shape is correct (should be 6D now instead of 8D)
     assert actual_result.shape[-1] == 6
+
 
 def test_compute_fine_sampling_distribution():
     """Make sure that the fine sampling distribution doesn't regress to incorrectness."""

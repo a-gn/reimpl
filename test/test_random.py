@@ -233,7 +233,9 @@ class TestPiecewiseUniform:
             interval_ratio = value_count_inside_interval / SAMPLE_COUNT
             # interval_probabilities contains probability density, multiply by width for probability
             interval_width = upper_bound - lower_bound
-            expected_probability = interval_probabilities[0, interval_index].item() * interval_width
+            expected_probability = (
+                interval_probabilities[0, interval_index].item() * interval_width
+            )
             print(
                 f"interval {interval_index} has sample ratio {interval_ratio:.3f} and expected probability {expected_probability:.3f}"
             )

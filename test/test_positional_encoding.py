@@ -18,9 +18,7 @@ class TestPositionalEncoding:
 
     def test_basic_shape_batch(self):
         # Batch of points with directions
-        points_and_dirs = jnp.array(
-            [[1.0, 2.0, 3.0, 0.1, 0.2, 0.3]]
-        )
+        points_and_dirs = jnp.array([[1.0, 2.0, 3.0, 0.1, 0.2, 0.3]])
         components = 3
 
         result = compute_nerf_positional_encoding(points_and_dirs, components)
