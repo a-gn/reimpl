@@ -41,6 +41,13 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         assert isinstance(
             pixel_to_camera_transform, jnp.ndarray
         ) and pixel_to_camera_transform.shape == (3, 3)
+        chosen_pixel_xy_hom = jnp.concat(
+            [
+                chosen_pixel_xy,
+                jnp.ones((chosen_pixel_xy.shape[0], 1), dtype=chosen_pixel_xy.dtype),
+            ],
+            axis=1,
+        )
         ray_directions_camera_frame = chosen_pixel_xy_hom @ pixel_to_camera_transform.T
         # homogeneous weight should be zero for vectors
         assert jnp.all(ray_directions_camera_frame[..., 3] == 0.0)
