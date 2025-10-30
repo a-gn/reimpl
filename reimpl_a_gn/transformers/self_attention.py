@@ -4,8 +4,13 @@ from jax import Array
 from jax.typing import ArrayLike
 
 
-def self_attention(data: ArrayLike, Q: Array, K: Array, V: Array) -> Array:
+def self_attention(data: ArrayLike, Q: ArrayLike, K: ArrayLike, V: ArrayLike) -> Array:
     """Simple self-attention layer."""
+
+    data = jnp.asarray(data)
+    Q = jnp.asarray(Q)
+    K = jnp.asarray(K)
+    V = jnp.asarray(V)
 
     if Q.shape[-1] != data.shape[-1]:
         raise ValueError(
