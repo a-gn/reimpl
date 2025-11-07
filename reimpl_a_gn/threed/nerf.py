@@ -16,12 +16,14 @@ class CoarseMLP(nnx.Module):
     ) -> None:
         input_size_per_layer = (input_features,) + mid_features
         output_size_per_layer = mid_features + (out_features,)
-        self.linear_layers = [
-            nnx.Linear(single_input_size, single_output_size, rngs=rngs)
-            for single_input_size, single_output_size in zip(
-                input_size_per_layer, output_size_per_layer
-            )
-        ]
+        self.linear_layers = nnx.List(
+            [
+                nnx.Linear(single_input_size, single_output_size, rngs=rngs)
+                for single_input_size, single_output_size in zip(
+                    input_size_per_layer, output_size_per_layer
+                )
+            ]
+        )
 
     def __call__(
         self,
@@ -52,12 +54,14 @@ class FineMLP(nnx.Module):
     ) -> None:
         input_size_per_layer = (input_features,) + mid_features
         output_size_per_layer = mid_features + (out_features,)
-        self.linear_layers = [
-            nnx.Linear(single_input_size, single_output_size, rngs=rngs)
-            for single_input_size, single_output_size in zip(
-                input_size_per_layer, output_size_per_layer
-            )
-        ]
+        self.linear_layers = nnx.List(
+            [
+                nnx.Linear(single_input_size, single_output_size, rngs=rngs)
+                for single_input_size, single_output_size in zip(
+                    input_size_per_layer, output_size_per_layer
+                )
+            ]
+        )
 
     def __call__(
         self,
