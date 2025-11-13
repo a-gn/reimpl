@@ -81,8 +81,8 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         # read colors from images
         integer_pixel_coordinates = chosen_pixel_xy.astype(int)
         chosen_images = jnp.take(self.all_data.images, chosen_image_indices, axis=0)
-        pixel_color_values = self.all_data.images[
-            chosen_images,
+        pixel_color_values = chosen_images[
+            chosen_image_indices,
             integer_pixel_coordinates[:, 0],
             integer_pixel_coordinates[:, 1],
         ]
