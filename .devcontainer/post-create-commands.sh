@@ -8,4 +8,5 @@ echo "Installing project with uv..."
 uv sync --dev
 
 echo "Setting up nbstripout to clear the output of notebook cells before committing..."
-nbstripout --install
+uv run nbstripout --install
+
