@@ -41,26 +41,36 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         assert isinstance(
             pixel_to_camera_transform, jnp.ndarray
         ) and pixel_to_camera_transform.shape == (3, 3)
-        chosen_pixel_xy_hom = jnp.concat(
+        # add homogeneous weight with value 1 (at this point, during projection, Z has been normalized away)
+        chosen_pixel_xyw = jnp.concat(
             [
                 chosen_pixel_xy,
                 jnp.ones((chosen_pixel_xy.shape[0], 1), dtype=chosen_pixel_xy.dtype),
             ],
             axis=1,
         )
-        ray_directions_camera_frame = chosen_pixel_xy_hom @ pixel_to_camera_transform.T
-        # homogeneous weight should be zero for vectors
-        assert jnp.all(ray_directions_camera_frame[..., 3] == 0.0)
+        ray_directions_camera_frame_xyw = chosen_pixel_xyw @ pixel_to_camera_transform.T
+        # add Z = 1
+        ray_directions_camera_frame_xyzw = jnp.concat(
+            [
+                ray_directions_camera_frame_xyw,
+                jnp.ones_like(
+                    ray_directions_camera_frame_xyw,
+                    shape=(*ray_directions_camera_frame_xyw.shape[:-1], 1),
+                ),
+            ],
+            axis=-1,
+        )
 
         # to world frame
-        chosen_extrinsic_matrices = jnp.take_along_axis(
+        chosen_extrinsic_matrices = jnp.take(
             self.all_data.extrinsic_matrices, chosen_image_indices, axis=0
         )
         camera_to_world_transforms = jnp.linalg.inv(chosen_extrinsic_matrices)
         ray_directions_world_frame = (
-            ray_directions_camera_frame @ camera_to_world_transforms.T
+            ray_directions_camera_frame_xyzw @ camera_to_world_transforms.T
         )
-        ray_origins_camera_frame = jnp.zeros((self.batch_size, 3), dtype=float)
+        ray_origins_camera_frame = jnp.zeros((self.batch_size, 4), dtype=float)
         ray_origins_world_frame = (
             ray_origins_camera_frame @ camera_to_world_transforms.T
         )
@@ -70,9 +80,7 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
 
         # read colors from images
         integer_pixel_coordinates = chosen_pixel_xy.astype(int)
-        chosen_images = jnp.take_along_axis(
-            self.all_data.images, chosen_image_indices, axis=0
-        )
+        chosen_images = jnp.take(self.all_data.images, chosen_image_indices, axis=0)
         pixel_color_values = self.all_data.images[
             chosen_images,
             integer_pixel_coordinates[:, 0],
