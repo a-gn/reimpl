@@ -68,14 +68,15 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         )
         camera_to_world_transforms = jnp.linalg.inv(chosen_extrinsic_matrices)
         ray_directions_world_frame = (
-            ray_directions_camera_frame_xyzw @ camera_to_world_transforms.T
+            ray_directions_camera_frame_xyzw
+            @ camera_to_world_transforms.transpose(0, 2, 1)
         )
         ray_origins_camera_frame = jnp.zeros((self.batch_size, 4), dtype=float)
         ray_origins_world_frame = (
-            ray_origins_camera_frame @ camera_to_world_transforms.T
+            ray_origins_camera_frame @ camera_to_world_transforms.transpose(0, 2, 1)
         )
         rays_world_frame = jnp.concat(
-            [ray_origins_world_frame, ray_directions_world_frame], axis=1
+            [ray_origins_world_frame, ray_directions_world_frame], axis=-1
         )
 
         # read colors from images
