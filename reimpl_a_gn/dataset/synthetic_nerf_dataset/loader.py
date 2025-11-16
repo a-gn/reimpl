@@ -36,54 +36,68 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         )
         del coordinate_choice_key
 
-        # compute ray direction vectors in camera frame
+        # prepare inverse transforms (reverse of capture process)
         pixel_to_camera_transform = jnp.linalg.inv(self.all_data.intrinsic_matrix)
-        assert isinstance(
-            pixel_to_camera_transform, jnp.ndarray
-        ) and pixel_to_camera_transform.shape == (3, 3)
-        # add homogeneous weight with value 1 (at this point, during projection, Z has been normalized away)
-        chosen_pixel_xyw = jnp.concat(
-            [
-                chosen_pixel_xy,
-                jnp.ones((chosen_pixel_xy.shape[0], 1), dtype=chosen_pixel_xy.dtype),
-            ],
-            axis=1,
-        )
-        ray_directions_camera_frame_xyw = chosen_pixel_xyw @ pixel_to_camera_transform.T
-        # add Z = 1
-        ray_directions_camera_frame_xyzw = jnp.concat(
-            [
-                ray_directions_camera_frame_xyw,
-                jnp.ones_like(
-                    ray_directions_camera_frame_xyw,
-                    shape=(*ray_directions_camera_frame_xyw.shape[:-1], 1),
-                ),
-            ],
-            axis=-1,
-        )
-
-        # to world frame
+        assert isinstance(pixel_to_camera_transform, Array)
         chosen_extrinsic_matrices = jnp.take(
             self.all_data.extrinsic_matrices, chosen_image_indices, axis=0
         )
         camera_to_world_transforms: Array = jnp.linalg.inv(chosen_extrinsic_matrices)
         assert isinstance(camera_to_world_transforms, Array)
-        ray_directions_world_frame = jnp.einsum(
-            "ij,ikj->ik", ray_directions_camera_frame_xyzw, camera_to_world_transforms
-        )
+
+        # compute ray origins
         ray_origins_camera_frame = jnp.zeros((self.batch_size, 4), dtype=float)
+        # set homogeneous weight 1 for points
+        ray_origins_camera_frame = ray_origins_camera_frame.at[:, 3].set(1.0)
         ray_origins_world_frame = jnp.einsum(
             "ij,ikj->ik", ray_origins_camera_frame, camera_to_world_transforms
         )
-        # should be vectors
-        assert jnp.all(ray_origins_world_frame[..., 3] == 0.0)
-        rays_world_frame = jnp.concat(
+        # make inhomogeneous
+        assert jnp.all(ray_origins_world_frame[:, 3] != 0.0)
+        ray_origins_world_frame = (
+            ray_origins_world_frame[:, :3] / ray_origins_world_frame[:, 3:]
+        )
+
+        # compute ray direction vectors in camera frame
+        assert isinstance(pixel_to_camera_transform, jnp.ndarray)
+        # add homogeneous weight with value 0 (for direction vectors)
+        # (at this point, during projection, Z has been normalized away)
+        chosen_pixel_xy0 = jnp.concat(
             [
-                ray_origins_world_frame[..., :3] / ray_origins_world_frame[..., 3:],
-                ray_directions_world_frame[..., :3],  # should be vectors
+                chosen_pixel_xy,
+                jnp.zeros((self.batch_size, 1), dtype=chosen_pixel_xy.dtype),
+            ],
+            axis=1,
+        )
+        ray_directions_camera_frame_xyw = chosen_pixel_xy0 @ pixel_to_camera_transform.T
+        # add Z = 1
+        ray_directions_camera_frame_xyzw = jnp.concat(
+            [
+                ray_directions_camera_frame_xyw[:, :2],
+                jnp.ones_like(
+                    ray_directions_camera_frame_xyw, shape=(self.batch_size, 1)
+                ),
+                ray_directions_camera_frame_xyw[:, 2:],
             ],
             axis=-1,
         )
+        # to world frame
+        ray_directions_world_frame = jnp.einsum(
+            "ij,ikj->ik", ray_directions_camera_frame_xyzw, camera_to_world_transforms
+        )
+        # make inhomogeneous
+        assert jnp.all(ray_directions_world_frame[:, 3] == 0.0)
+        ray_directions_world_frame = ray_directions_world_frame[:, :3]
+        # should be unit vectors per API contract
+        ray_directions_world_frame /= jnp.linalg.norm(
+            ray_directions_world_frame, axis=1, keepdims=True
+        )
+
+        rays_world_frame = jnp.concat(
+            [ray_origins_world_frame, ray_directions_world_frame],
+            axis=-1,
+        )
+        assert rays_world_frame.shape == (self.batch_size, 6)
 
         # read colors from images
         integer_pixel_coordinates = chosen_pixel_xy.astype(int)
