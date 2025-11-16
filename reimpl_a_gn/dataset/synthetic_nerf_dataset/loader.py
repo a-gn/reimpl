@@ -68,13 +68,12 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         )
         camera_to_world_transforms: Array = jnp.linalg.inv(chosen_extrinsic_matrices)
         assert isinstance(camera_to_world_transforms, Array)
-        ray_directions_world_frame = (
-            ray_directions_camera_frame_xyzw
-            @ camera_to_world_transforms.transpose(0, 2, 1)
+        ray_directions_world_frame = jnp.einsum(
+            "ij,ikj->ik", ray_directions_camera_frame_xyzw, camera_to_world_transforms
         )
         ray_origins_camera_frame = jnp.zeros((self.batch_size, 4), dtype=float)
-        ray_origins_world_frame = (
-            ray_origins_camera_frame @ camera_to_world_transforms.transpose(0, 2, 1)
+        ray_origins_world_frame = jnp.einsum(
+            "ij,ikj->ik", ray_origins_camera_frame, camera_to_world_transforms
         )
         # should be vectors
         assert jnp.all(ray_origins_world_frame[..., 3] == 0.0)
