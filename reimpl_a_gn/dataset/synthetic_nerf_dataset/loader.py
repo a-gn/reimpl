@@ -9,7 +9,8 @@ from .wrapper import SyntheticNeRFData
 
 
 class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
-    def __init__(self, all_data: SyntheticNeRFData):
+    def __init__(self, all_data: SyntheticNeRFData, rng_key: Array, batch_size: int):
+        super().__init__(rng_key, batch_size)
         self.all_data = all_data
 
     def _get_batch_of_rays(self, rng_key: Array) -> NeRFTrainingSamples:
@@ -59,7 +60,6 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         )
 
         # compute ray direction vectors in camera frame
-        assert isinstance(pixel_to_camera_transform, jnp.ndarray)
         # add homogeneous weight with value 0 (for direction vectors)
         # (at this point, during projection, Z has been normalized away)
         chosen_pixel_xy0 = jnp.concat(
@@ -103,8 +103,8 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         integer_pixel_coordinates = chosen_pixel_xy.astype(int)
         pixel_color_values = self.all_data.images[
             chosen_image_indices,
-            integer_pixel_coordinates[:, 0],
-            integer_pixel_coordinates[:, 1],
+            integer_pixel_coordinates[:, 1],  # height
+            integer_pixel_coordinates[:, 0],  # width
         ]
 
         return NeRFTrainingSamples(
@@ -112,6 +112,6 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
             colors=pixel_color_values,
             extrinsic_matrices=chosen_extrinsic_matrices,
             dataset_info=[
-                {"image_index": index} for index in chosen_image_indices.tolist()
+                {"image_index": str(index)} for index in chosen_image_indices.tolist()
             ],
         )
