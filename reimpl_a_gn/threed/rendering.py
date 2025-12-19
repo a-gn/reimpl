@@ -14,7 +14,7 @@ from reimpl_a_gn.threed.coord_utils import (
     get_rays,
     sample_coarse_mlp_inputs,
 )
-from reimpl_a_gn.threed.nerf import CoarseMLP, FineMLP
+from reimpl_a_gn.threed.nerf.nerf import CoarseMLP, FineMLP
 
 
 @partial(

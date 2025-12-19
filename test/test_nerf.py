@@ -2,7 +2,7 @@ import flax.nnx as nnx
 import jax
 import pytest
 
-import reimpl_a_gn.threed.nerf as nerf
+import reimpl_a_gn.threed.nerf.nerf as nerf
 
 
 @pytest.fixture()
