@@ -51,10 +51,10 @@ def train_nerf(
                 bins_per_ray=5,
                 prng_key=coarse_input_sampling_key,
             )
-            coarse_inputs = coarse_inputs[..., :3].set(
+            coarse_inputs = coarse_inputs.at[..., :3].set(
                 position_encoder(coarse_inputs[..., :3])
             )
-            coarse_inputs = coarse_inputs[..., 3:].set(
+            coarse_inputs = coarse_inputs.at[..., 3:].set(
                 direction_encoder(coarse_inputs[..., 3:])
             )
             coarse_predictions = coarse_mlp(coarse_inputs)
