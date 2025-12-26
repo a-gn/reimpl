@@ -2,16 +2,15 @@ from typing import Callable
 
 import jax.numpy as jnp
 from jax import Array
-from jax.random import permutation, split
+from jax.random import split
 from optax import adam
 from tqdm import tqdm
 
 from reimpl_a_gn.dataset.common import RayAndColorDataset
-from reimpl_a_gn.random import piecewise_uniform
 from reimpl_a_gn.threed.coord_utils import (
     compute_fine_sampling_distribution,
-    compute_nerf_positional_encoding,
-    sample_coarse_mlp_inputs,
+    sample_coarse_mlp_positions,
+    sample_from_fine_sampling_distribution,
 )
 from reimpl_a_gn.threed.rendering import blend_ray_features_with_nerf_paper_method
 
@@ -44,13 +43,15 @@ def train_nerf(
             batch_items = [next(dataset_iterator) for _ in range(batch_size)]
             joined_rays = jnp.concatenate([item.rays for item in batch_items], axis=0)
 
-            coarse_inputs = sample_coarse_mlp_inputs(
+            coarse_positions = sample_coarse_mlp_positions(
                 joined_rays,
                 near_distance=0.1,
                 far_distance=5.0,
                 bins_per_ray=5,
                 prng_key=coarse_input_sampling_key,
             )
+            # Encode coarse positions for MLP
+            coarse_inputs = coarse_positions.copy()
             coarse_inputs = coarse_inputs.at[..., :3].set(
                 position_encoder(coarse_inputs[..., :3])
             )
@@ -61,9 +62,16 @@ def train_nerf(
 
             fine_input_distribution = compute_fine_sampling_distribution(
                 densities=coarse_predictions[..., 3],
-                sampling_positions=coarse_inputs[..., :3],
+                sampling_positions=coarse_positions[..., :3],
             )
-            fine_positions = piecewise_uniform(fine_input_sampling_key, intervals)
+            fine_positions = sample_from_fine_sampling_distribution(
+                pdf=fine_input_distribution,
+                rays=joined_rays,
+                positions=coarse_positions,
+                sample_count_per_distribution=3,
+                rng_key=fine_input_sampling_key,
+            )
+            fine_inputs = fine_positions.copy()
             fine_inputs = fine_inputs[..., :3].set(
                 position_encoder(fine_inputs[..., :3])
             )

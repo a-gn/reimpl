@@ -58,7 +58,7 @@ def test_extrinsic_camera_with_non_orthogonal_directions():
 
 def test_sample_coarse_positions(flower_rays: jnp.ndarray):
     prng_key = jax.random.key(7)
-    actual_result = coord_utils.sample_coarse_mlp_inputs(
+    actual_result = coord_utils.sample_coarse_mlp_positions(
         rays=flower_rays,
         near_distance=0.5,
         far_distance=5.0,

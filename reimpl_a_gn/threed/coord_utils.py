@@ -7,6 +7,8 @@ import jax
 import jax.numpy as jnp
 import jax.typing as jt
 
+from reimpl_a_gn.random import piecewise_uniform
+
 
 def to_homogeneous_points(points: jt.ArrayLike) -> jax.Array:
     """Convert 3D points to homogeneous coordinates.
@@ -398,7 +400,7 @@ def sample_regular_positions_along_rays(
     return result
 
 
-def sample_coarse_mlp_inputs(
+def sample_coarse_mlp_positions(
     rays: jt.ArrayLike,
     near_distance: float,
     far_distance: float,
@@ -487,6 +489,42 @@ def compute_fine_sampling_distribution(
     )
     pdf = unnormalized_pdf / jnp.sum(unnormalized_pdf, axis=-1, keepdims=True)
     return pdf
+
+
+def sample_from_fine_sampling_distribution(
+    pdf: jax.Array,
+    rays: jax.Array,
+    positions: jax.Array,
+    sample_count_per_distribution: int,
+    rng_key: jax.Array,
+):
+    """Sample positions for the fine MLP of a NeRF from a PDF over ray positions and convert them to 3D positions.
+
+    @param pdf Piecewise-uniform probability densities for each interval. Shape: (ray_count, interval_count)
+    @param rays 3D origin and unit direction vector of each ray. Shape: (ray_count, 6). Last axis: x, y, z, dx, dy, dz.
+    @param positions 3D coordinates corresponding to the PDF intervals. Shape: (ray_count, interval_count + 1)
+    @param rng_key Key to use to generate pseudorandom numbers.
+    """
+
+    assert rays.ndim == 2 and rays.shape[1] == 6
+    ray_origins = rays[..., 0:3]
+    ray_directions = rays[..., 3:6]
+
+    # Broadcast origins, compute distances from origins to positions
+    positions_on_rays = jnp.linalg.norm(positions - jnp.expand_dims(ray_origins, -1))
+    interval_lengths = positions_on_rays[..., 1:] - positions_on_rays[..., :-1]
+    interval_probabilities = interval_lengths * pdf
+    sampled_positions_on_rays = piecewise_uniform(
+        key=rng_key,
+        intervals=positions_on_rays,
+        interval_probabilities=interval_probabilities,
+        sample_count_per_distribution=sample_count_per_distribution,
+    )
+    sampled_positions = (
+        jnp.expand_dims(ray_origins, -1)
+        + jnp.expand_dims(ray_directions, -1) * sampled_positions_on_rays
+    )
+    return sampled_positions
 
 
 def compute_nerf_positional_encoding(
