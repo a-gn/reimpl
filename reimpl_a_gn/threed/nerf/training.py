@@ -51,12 +51,12 @@ def train_nerf(
                 prng_key=coarse_input_sampling_key,
             )
             # Encode coarse positions for MLP
-            coarse_inputs = coarse_positions.copy()
-            coarse_inputs = coarse_inputs.at[..., :3].set(
-                position_encoder(coarse_inputs[..., :3])
-            )
-            coarse_inputs = coarse_inputs.at[..., 3:].set(
-                direction_encoder(coarse_inputs[..., 3:])
+            coarse_inputs = jnp.concat(
+                [
+                    position_encoder(coarse_positions[..., :3]),
+                    direction_encoder(coarse_positions[..., 3:]),
+                ],
+                axis=-1,
             )
             coarse_predictions = coarse_mlp(coarse_inputs)
 
@@ -71,12 +71,12 @@ def train_nerf(
                 sample_count_per_distribution=3,
                 rng_key=fine_input_sampling_key,
             )
-            fine_inputs = fine_positions.copy()
-            fine_inputs = fine_inputs[..., :3].set(
-                position_encoder(fine_inputs[..., :3])
-            )
-            fine_inputs = fine_inputs[..., 3:].set(
-                direction_encoder(fine_inputs[..., 3:])
+            fine_inputs = jnp.concat(
+                [
+                    position_encoder(fine_positions[..., :3]),
+                    direction_encoder(fine_positions[..., 3:]),
+                ],
+                axis=-1,
             )
             fine_predictions = fine_mlp(fine_inputs)
 

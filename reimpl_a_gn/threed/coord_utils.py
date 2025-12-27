@@ -532,21 +532,21 @@ def compute_nerf_positional_encoding(
 ):
     """Compute the NeRF paper's positional encoding of a set of points and associated directions.
 
-    @param points_and_directions Rays to encode. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
-    @return Positional encoding of the points. Shape: (..., 6 * 2 * components). The embeddings of all coordinates are
+    @param points_and_directions Rays to encode. Shape: (..., N). Last axis: x, y, z, dx, dy, dz.
+    @return Positional encoding of the points. Shape: (..., N * 2 * components). The embeddings of all coordinates are
     concatenated on the last dimension (the output has the same number of dimension as the input).
     """
 
     points_and_directions = jnp.array(points_and_directions)
-    if points_and_directions.ndim < 2 or points_and_directions.shape[-1] != 6:
+    if points_and_directions.ndim < 2:
         raise ValueError(
-            f"expected input shape (..., 6), got shape {points_and_directions.shape}"
+            f"expected at least two dimensions, got shape {points_and_directions.shape}"
         )
 
     exponents = jnp.arange(0, components).reshape(
         # 1s over all input axes
         *([1] * (len(points_and_directions.shape))),
-        # all components on a new axis so that product broadcasts each of the 6 input coordinates over all exponents
+        # all components on a new axis so that product broadcasts each of the input coordinates over all exponents
         components,
     )
     points_and_directions_with_broadcast_axis = points_and_directions.reshape(
@@ -559,7 +559,8 @@ def compute_nerf_positional_encoding(
     cosine_results = jnp.cos(arguments)
     full_results = jnp.concatenate([sine_results, cosine_results], axis=-1)
     full_results = full_results.reshape(
-        *(points_and_directions.shape[:-1]), 6 * 2 * components
+        *(points_and_directions.shape[:-1]),
+        2 * components * points_and_directions.shape[-1],
     )
 
     return full_results
