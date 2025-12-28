@@ -24,3 +24,9 @@ FROM ubuntu:24.04 AS main
 
     RUN mkdir /workspace
     WORKDIR /workspace
+
+    # Install dependencies
+    COPY ./pyproject.toml ./pyproject.toml
+    COPY ./uv.lock ./uv.lock
+    RUN uv sync --locked --no-install-project
+    RUN rm ./pyproject.toml ./uv.lock
