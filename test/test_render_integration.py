@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from reimpl_a_gn.threed.nerf import CoarseMLP, FineMLP
+from reimpl_a_gn.threed.nerf.nerf import CoarseMLP, FineMLP
 from reimpl_a_gn.threed.rendering import render_image, render_rays
 
 

@@ -9,4 +9,3 @@ uv sync --dev
 
 echo "Setting up nbstripout to clear the output of notebook cells before committing..."
 uv run nbstripout --install
-

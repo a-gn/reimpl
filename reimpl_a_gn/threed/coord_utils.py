@@ -7,6 +7,8 @@ import jax
 import jax.numpy as jnp
 import jax.typing as jt
 
+from reimpl_a_gn.random import piecewise_uniform
+
 
 def to_homogeneous_points(points: jt.ArrayLike) -> jax.Array:
     """Convert 3D points to homogeneous coordinates.
@@ -398,7 +400,7 @@ def sample_regular_positions_along_rays(
     return result
 
 
-def sample_coarse_mlp_inputs(
+def sample_coarse_mlp_positions(
     rays: jt.ArrayLike,
     near_distance: float,
     far_distance: float,
@@ -489,26 +491,62 @@ def compute_fine_sampling_distribution(
     return pdf
 
 
+def sample_from_fine_sampling_distribution(
+    pdf: jax.Array,
+    rays: jax.Array,
+    positions: jax.Array,
+    sample_count_per_distribution: int,
+    rng_key: jax.Array,
+):
+    """Sample positions for the fine MLP of a NeRF from a PDF over ray positions and convert them to 3D positions.
+
+    @param pdf Piecewise-uniform probability densities for each interval. Shape: (ray_count, interval_count)
+    @param rays 3D origin and unit direction vector of each ray. Shape: (ray_count, 6). Last axis: x, y, z, dx, dy, dz.
+    @param positions 3D coordinates corresponding to the PDF intervals. Shape: (ray_count, interval_count + 1)
+    @param rng_key Key to use to generate pseudorandom numbers.
+    """
+
+    assert rays.ndim == 2 and rays.shape[1] == 6
+    ray_origins = rays[..., 0:3]
+    ray_directions = rays[..., 3:6]
+
+    # Broadcast origins, compute distances from origins to positions
+    positions_on_rays = jnp.linalg.norm(positions - jnp.expand_dims(ray_origins, -1))
+    interval_lengths = positions_on_rays[..., 1:] - positions_on_rays[..., :-1]
+    interval_probabilities = interval_lengths * pdf
+    sampled_positions_on_rays = piecewise_uniform(
+        key=rng_key,
+        intervals=positions_on_rays,
+        interval_probabilities=interval_probabilities,
+        sample_count_per_distribution=sample_count_per_distribution,
+    )
+    sampled_positions = (
+        jnp.expand_dims(ray_origins, -1)
+        + jnp.expand_dims(ray_directions, -1) * sampled_positions_on_rays
+    )
+    return sampled_positions
+
+
 def compute_nerf_positional_encoding(
     points_and_directions: jt.ArrayLike, components: int
 ):
     """Compute the NeRF paper's positional encoding of a set of points and associated directions.
 
-    @param points_and_directions Rays to encode. Shape: (..., 6). Last axis: x, y, z, dx, dy, dz.
-    @return Positional encoding of the points. Shape: (..., 6 * 2 * components). The embeddings of all coordinates are
+    @param points_and_directions Rays to encode. Shape: (..., N). Last axis: x, y, z, dx, dy, dz.
+    @return Positional encoding of the points. Shape: (..., N * 2 * components). The embeddings of all coordinates are
     concatenated on the last dimension (the output has the same number of dimension as the input).
     """
 
     points_and_directions = jnp.array(points_and_directions)
-    if points_and_directions.ndim < 2 or points_and_directions.shape[-1] != 6:
+    if points_and_directions.ndim < 2:
         raise ValueError(
-            f"expected input shape (..., 6), got shape {points_and_directions.shape}"
+            f"expected at least two dimensions, got shape {points_and_directions.shape}"
         )
 
     exponents = jnp.arange(0, components).reshape(
         # 1s over all input axes
         *([1] * (len(points_and_directions.shape))),
-        # all components on a new axis so that product broadcasts each of the 6 input coordinates over all exponents
+        # all components on a new axis so that product broadcasts each of the input coordinates over all exponents
         components,
     )
     points_and_directions_with_broadcast_axis = points_and_directions.reshape(
@@ -521,7 +559,8 @@ def compute_nerf_positional_encoding(
     cosine_results = jnp.cos(arguments)
     full_results = jnp.concatenate([sine_results, cosine_results], axis=-1)
     full_results = full_results.reshape(
-        *(points_and_directions.shape[:-1]), 6 * 2 * components
+        *(points_and_directions.shape[:-1]),
+        2 * components * points_and_directions.shape[-1],
     )
 
     return full_results

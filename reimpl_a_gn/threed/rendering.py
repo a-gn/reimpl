@@ -12,9 +12,9 @@ from reimpl_a_gn.threed.coord_utils import (
     compute_fine_sampling_distribution,
     compute_nerf_positional_encoding,
     get_rays,
-    sample_coarse_mlp_inputs,
+    sample_coarse_mlp_positions,
 )
-from reimpl_a_gn.threed.nerf import CoarseMLP, FineMLP
+from reimpl_a_gn.threed.nerf.nerf import CoarseMLP, FineMLP
 
 
 @partial(
@@ -105,7 +105,7 @@ def render_rays(
     # coarse MLP
 
     rng_key, rng_subkey = split(rng_key)
-    coarse_positions = sample_coarse_mlp_inputs(
+    coarse_positions = sample_coarse_mlp_positions(
         rays,
         near_distance=near_distance,
         far_distance=far_distance,

@@ -9,7 +9,8 @@ from .wrapper import SyntheticNeRFData
 
 
 class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
-    def __init__(self, all_data: SyntheticNeRFData):
+    def __init__(self, all_data: SyntheticNeRFData, rng_key: Array, batch_size: int):
+        super().__init__(rng_key, batch_size)
         self.all_data = all_data
 
     def _get_batch_of_rays(self, rng_key: Array) -> NeRFTrainingSamples:
@@ -36,27 +37,81 @@ class SyntheticNeRFDatasetForTraining(RayAndColorDataset):
         )
         del coordinate_choice_key
 
-        # compute ray direction vectors in camera frame
+        # prepare inverse transforms (reverse of capture process)
         pixel_to_camera_transform = jnp.linalg.inv(self.all_data.intrinsic_matrix)
-        assert isinstance(
-            pixel_to_camera_transform, jnp.ndarray
-        ) and pixel_to_camera_transform.shape == (3, 3)
-        chosen_pixel_xy_hom = jnp.concat(
+        assert isinstance(pixel_to_camera_transform, Array)
+        chosen_extrinsic_matrices = jnp.take(
+            self.all_data.extrinsic_matrices, chosen_image_indices, axis=0
+        )
+        camera_to_world_transforms: Array = jnp.linalg.inv(chosen_extrinsic_matrices)
+        assert isinstance(camera_to_world_transforms, Array)
+
+        # compute ray origins
+        ray_origins_camera_frame = jnp.zeros((self.batch_size, 4), dtype=float)
+        # set homogeneous weight 1 for points
+        ray_origins_camera_frame = ray_origins_camera_frame.at[:, 3].set(1.0)
+        ray_origins_world_frame = jnp.einsum(
+            "ij,ikj->ik", ray_origins_camera_frame, camera_to_world_transforms
+        )
+        # make inhomogeneous
+        assert jnp.all(ray_origins_world_frame[:, 3] != 0.0)
+        ray_origins_world_frame = (
+            ray_origins_world_frame[:, :3] / ray_origins_world_frame[:, 3:]
+        )
+
+        # compute ray direction vectors in camera frame
+        # add homogeneous weight with value 0 (for direction vectors)
+        # (at this point, during projection, Z has been normalized away)
+        chosen_pixel_xy0 = jnp.concat(
             [
                 chosen_pixel_xy,
-                jnp.ones((chosen_pixel_xy.shape[0], 1), dtype=chosen_pixel_xy.dtype),
+                jnp.zeros((self.batch_size, 1), dtype=chosen_pixel_xy.dtype),
             ],
             axis=1,
         )
-        ray_directions_camera_frame = chosen_pixel_xy_hom @ pixel_to_camera_transform.T
-        # homogeneous weight should be zero for vectors
-        assert jnp.all(ray_directions_camera_frame[..., 3] == 0.0)
-
-        # to world frame
-        chosen_extrinsic_matrices = jnp.take_along_axis(
-            self.all_data.extrinsic_matrices, chosen_image_indices, axis=0
+        ray_directions_camera_frame_xyw = chosen_pixel_xy0 @ pixel_to_camera_transform.T
+        # add Z = 1
+        ray_directions_camera_frame_xyzw = jnp.concat(
+            [
+                ray_directions_camera_frame_xyw[:, :2],
+                jnp.ones_like(
+                    ray_directions_camera_frame_xyw, shape=(self.batch_size, 1)
+                ),
+                ray_directions_camera_frame_xyw[:, 2:],
+            ],
+            axis=-1,
         )
-        camera_to_world_transforms = jnp.linalg.inv(chosen_extrinsic_matrices)
-        ray_directions_world_frame = (
-            ray_directions_camera_frame @ camera_to_world_transforms.T
+        # to world frame
+        ray_directions_world_frame = jnp.einsum(
+            "ij,ikj->ik", ray_directions_camera_frame_xyzw, camera_to_world_transforms
+        )
+        # make inhomogeneous
+        assert jnp.all(ray_directions_world_frame[:, 3] == 0.0)
+        ray_directions_world_frame = ray_directions_world_frame[:, :3]
+        # should be unit vectors per API contract
+        ray_directions_world_frame /= jnp.linalg.norm(
+            ray_directions_world_frame, axis=1, keepdims=True
+        )
+
+        rays_world_frame = jnp.concat(
+            [ray_origins_world_frame, ray_directions_world_frame],
+            axis=-1,
+        )
+        assert rays_world_frame.shape == (self.batch_size, 6)
+
+        # read colors from images
+        integer_pixel_coordinates = chosen_pixel_xy.astype(int)
+        pixel_color_values = self.all_data.images[
+            chosen_image_indices,
+            integer_pixel_coordinates[:, 1],  # height
+            integer_pixel_coordinates[:, 0],  # width
+        ]
+
+        return NeRFTrainingSamples(
+            rays=rays_world_frame,
+            colors=pixel_color_values,
+            extrinsic_matrices=chosen_extrinsic_matrices,
+            dataset_info=[
+                {"image_index": str(index)} for index in chosen_image_indices.tolist()
+            ],
         )
