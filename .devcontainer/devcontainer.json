@@ -37,7 +37,7 @@
                 "editor.rulers": [
                     120
                 ],
-                "python.defaultInterpreterPath": "/opt/venv/bin/python",
+                "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
                 "python.formatting.provider": "charliermarsh.ruff"
             }
         }
