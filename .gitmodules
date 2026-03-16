@@ -7,3 +7,6 @@
 [submodule "external/nerf-pytorch"]
 	path = external/nerf-pytorch
 	url = git@github.com:yenchenlin/nerf-pytorch.git
+[submodule "external/ml-diffucoder"]
+	path = external/ml-diffucoder
+	url = git@github.com:apple/ml-diffucoder.git
