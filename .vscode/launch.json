@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: test_train_nerf.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/test_train_nerf.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
