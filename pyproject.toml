@@ -69,7 +69,7 @@ reportReturnType = false
 reportPossiblyUnboundVariable = false
 reportGeneralTypeIssues = false
 reportUnusedImport = true
-pythonVersion = "3.13"
+pythonVersion = "3.12"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
